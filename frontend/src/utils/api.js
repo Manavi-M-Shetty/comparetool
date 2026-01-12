@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8000";
+// Use relative base so Vite proxy can route `/api/*` -> backend (avoids CORS and mixed-port confusion)
+const API_BASE_URL = "/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -17,7 +18,7 @@ export const compareFilesUpload = async (oldFile, newFile) => {
   formData.append("old_file", oldFile);
   formData.append("new_file", newFile);
 
-  const res = await axios.post(`${API_BASE_URL}/compare-files`, formData, {
+  const res = await axios.post(`/api/compare-files`, formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
@@ -38,7 +39,7 @@ export const scanFolders = async (oldFolder, newFolder) => {
 };
 
 /**
- * Compare two folders recursively
+ * Compare two folders via proxy '/api/*' to backend
  */
 export const compareFolders = async (oldFolder, newFolder) => {
   const res = await api.post("/compare-folders", {
@@ -47,6 +48,19 @@ export const compareFolders = async (oldFolder, newFolder) => {
   });
   return res.data;
 };
+
+/**
+ * Compare folders and update excel via proxy
+ */
+export const compareAndUpdate = async (oldFolder, newFolder, excelPath) => {
+  const res = await api.post("/compare-and-update", {
+    old_folder: oldFolder,
+    new_folder: newFolder,
+    excel_path: excelPath || null,
+  });
+  return res.data;
+};
+
 
 /**
  * Update Excel file with comparison results
@@ -59,14 +73,14 @@ export const updateExcel = async (excelPath, fileDiffs) => {
   return res.data;
 };
 
+
 /**
- * Combined endpoint: Compare folders and update Excel
+ * Compare two files by path on the backend (returns unified diff, semantic diff, and raw texts)
  */
-export const compareAndUpdate = async (oldFolder, newFolder, excelPath) => {
-  const res = await api.post("/compare-and-update", {
-    old_folder: oldFolder,
-    new_folder: newFolder,
-    excel_path: excelPath || null,
+export const compareFilePaths = async (oldPath, newPath) => {
+  const res = await api.post("/compare", {
+    old_path: oldPath,
+    new_path: newPath,
   });
   return res.data;
 };

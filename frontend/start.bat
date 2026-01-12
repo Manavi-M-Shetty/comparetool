@@ -1,5 +1,40 @@
 @echo off
-echo Starting Config Compare Tool Frontend...
-echo.
-npm run dev
+REM Robust start script: try to free port 3000 up to 5 times, then start dev server with strict port
+echo Starting frontend (attempt will ensure PORT 3000 is free)...
+setlocal enabledelayedexpansion
+set RETRIES=0
+:CHECKPORT
+set PID=
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000"') do (
+  set PID=%%a
+)
+if defined PID (
+  echo [!] Port 3000 in use by PID !PID!. Attempting to terminate.
+  taskkill /PID !PID! /F >nul 2>&1
+  if errorlevel 1 (
+    echo Failed to kill PID !PID!. You may need to close it manually.
+  ) else (
+    echo Killed PID !PID!.
+  )
+  set /a RETRIES+=1
+  if !RETRIES! gtr 5 (
+    echo "Port 3000 still busy after !RETRIES! attempts. Aborting."
+    echo "Please manually free port 3000 and re-run this script or run `npm run dev` with a different port."
+    pause
+    goto END
+  )
+  timeout /t 1 /nobreak >nul
+  goto CHECKPORT
+)
+echo Port 3000 is free. Starting dev server with strict port...
+set PORT=3000 && npm run dev -- --strictPort
+if errorlevel 1 (
+  echo Dev server failed to start on port 3000. Check for errors in the terminal.
+  pause
+) else (
+  echo Dev server started on port 3000.
+  start http://localhost:3000
+)
+:END
+endlocal
 pause

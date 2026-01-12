@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { compareFilesUpload, compareFolders } from "../utils/api";
+import { useState, useEffect } from "react";
+import { compareFilesUpload, compareFolders, compareFilePaths } from "../utils/api";
 import DiffViewer from "../components/DiffViewer";
 import CompareButton from "../components/CompareButton";
 import StatusBar from "../components/StatusBar";
+import FolderTree from "../components/FolderTree";
 
 export default function Home() {
   // Section 1: file comparison
@@ -15,11 +16,28 @@ export default function Home() {
   // Section 2: folder comparison
   const [oldFolder, setOldFolder] = useState("");
   const [newFolder, setNewFolder] = useState("");
+  const [excelPath, setExcelPath] = useState("");
   const [folderResult, setFolderResult] = useState(null);
   const [selectedFolderDiff, setSelectedFolderDiff] = useState(null);
+  const [componentFilter, setComponentFilter] = useState("");
+  const [keyFilter, setKeyFilter] = useState("");
 
+  // Loading and status state used across operations
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({ type: "info", message: "Ready" });
+
+  // Quick backend health check to diagnose blank page / API issues
+  useEffect(() => {
+    fetch('/api/')
+      .then((r) => r.json())
+      .then(() => {
+        setStatus((s) => (s.message === 'Ready' ? { type: 'success', message: 'Backend is available' } : s));
+      })
+      .catch((err) => {
+        setStatus({ type: 'error', message: 'Backend not reachable. Start backend on port 8000 (see README).' });
+        console.warn('Backend health-check failed:', err);
+      });
+  }, []);
 
   // Shared viewer: which source is active (file or folder)
   const [activeSource, setActiveSource] = useState("file"); // "file" | "folder"
@@ -97,10 +115,10 @@ export default function Home() {
       const data = await compareFolders(oldFolder, newFolder);
       setFolderResult(data);
 
-      // Preselect first file with changes
-      if (data.file_diffs && data.file_diffs.length > 0) {
+      // Preselect first file with changes (use file_summaries)
+      if (data.file_summaries && data.file_summaries.length > 0) {
         const firstWithChanges =
-          data.file_diffs.find((fd) => fd.has_changes) || data.file_diffs[0];
+          data.file_summaries.find((fd) => fd.has_changes) || data.file_summaries[0];
         setSelectedFolderDiff(firstWithChanges);
       }
 
@@ -130,18 +148,110 @@ export default function Home() {
     }
   };
 
-  // Build a simple tree structure: component -> files
+  // Use folder_tree returned from backend (nested) and support filtering
+  // Enrich file nodes with metadata from file_summaries so clicks always include both paths
   const folderTree = (() => {
-    if (!folderResult || !folderResult.file_diffs) return {};
-    const tree = {};
-    folderResult.file_diffs.forEach((fd) => {
-      if (!tree[fd.component_name]) {
-        tree[fd.component_name] = [];
-      }
-      tree[fd.component_name].push(fd);
-    });
-    return tree;
+    if (!folderResult || !folderResult.folder_tree) return null;
+
+    // Build fast lookup of summaries by old_path
+    const summaryMap = new Map((folderResult.file_summaries || []).map((fs) => [fs.old_path, fs]));
+
+    // Simple filters: component (folder) and keyFilter searches file names and semantic summaries
+    const applyFilters = (node) => {
+      // merge metadata into files
+      const filesWithMeta = (node.files || []).map((f) => {
+        const meta = summaryMap.get(f.path) || {};
+        return { ...f, ...meta };
+      });
+
+      // filter files
+      const filteredFiles = filesWithMeta.filter((fd) => {
+        if (componentFilter && !node.name.toLowerCase().includes(componentFilter.toLowerCase())) return false;
+        if (keyFilter) {
+          const k = keyFilter.toLowerCase();
+          const semString = fd.semantic_diff && fd.semantic_diff.summary ? JSON.stringify(fd.semantic_diff.summary).toLowerCase() : "";
+          const nameAndSummary = `${fd.file_name || ""} ${(fd.summary || "").toString()}`.toLowerCase();
+          if (!nameAndSummary.includes(k) && !semString.includes(k)) return false;
+        }
+        return true;
+      });
+
+      // apply to subfolders recursively
+      const filteredSubs = (node.subfolders || []).map(applyFilters).filter(Boolean);
+
+      return {
+        ...node,
+        files: filteredFiles,
+        subfolders: filteredSubs,
+      };
+    };
+
+    return applyFilters(folderResult.folder_tree);
   })();
+
+  const handleSelectFolderFile = async (fd) => {
+    // Fetch full content and semantic diff from backend. Ensure we always pass both paths.
+    setActiveSource("folder");
+    setSelectedFolderDiff(null);
+    setLoading(true);
+    setStatus({ type: "info", message: "Fetching file diff..." });
+
+    // Resolve old/new paths when the clicked node only contains minimal info
+    let oldPath = fd.old_path || fd.path || null;
+    let newPath = fd.new_path || null;
+
+    if ((!oldPath || !newPath) && folderResult && folderResult.file_summaries) {
+      const match = folderResult.file_summaries.find((s) => s.old_path === fd.path || s.file_name === fd.file_name);
+      if (match) {
+        oldPath = match.old_path;
+        newPath = match.new_path;
+        fd = { ...fd, ...match };
+      }
+    }
+
+    try {
+      if (!oldPath) throw new Error("Missing old path for selected file");
+
+      if (!newPath) {
+        // Missing in NEW: show a clear summary instead of calling backend with invalid paths
+        setSelectedFolderDiff({
+          ...fd,
+          old_text: null,
+          new_text: null,
+          diff_lines: [],
+          semantic_diff: fd.semantic_diff || { changes: [], summary: {} },
+          has_changes: true,
+          unified_diff: [],
+          summary: fd.summary || "Missing in NEW",
+        });
+        setStatus({ type: "success", message: fd.summary          || "Missing in NEW" });
+        return;
+      }
+
+      const data = await compareFilePaths(oldPath, newPath);
+
+      // Merge returned data into fd for viewer
+      const enriched = {
+        ...fd,
+        old_text: data.old_text,
+        new_text: data.new_text,
+        diff_lines: data.diff_lines,
+        semantic_diff: data.semantic_diff,
+        has_changes: data.has_changes,
+        unified_diff: data.unified_diff,
+        summary: data.summary,
+      };
+      setSelectedFolderDiff(enriched);
+
+      setStatus({ type: "success", message: data.summary || "Loaded diff" });
+    } catch (err) {
+      const msg = err?.response?.data?.detail || err.message || "Error loading diff";
+      setStatus({ type: "error", message: msg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   // Determine which content to show in diff viewer
   const viewerOldText =
@@ -163,7 +273,7 @@ export default function Home() {
             Config Compare Tool
           </h1>
           <p className="text-sm md:text-base text-gray-600 mt-1">
-            WinMerge-style comparison for individual files and folders.
+             Comparison for individual files and folders.
           </p>
         </div>
 
@@ -268,11 +378,39 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-              <div className="pt-2">
+              <div className="pt-2 flex items-center gap-2">
                 <CompareButton
                   onClick={handleFolderCompare}
                   disabled={!oldFolder || !newFolder}
                   loading={loading && activeSource === "folder"}
+                />
+
+              </div>
+
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={excelPath}
+                  onChange={(e) => setExcelPath(e.target.value)}
+                  placeholder="Optional Excel path to update (C:\\path\\to\\workbook.xlsx)"
+                  className="px-2 py-1 text-xs border rounded"
+                />
+                <input
+                  type="text"
+                  value={componentFilter}
+                  onChange={(e) => setComponentFilter(e.target.value)}
+                  placeholder="Filter components"
+                  className="px-2 py-1 text-xs border rounded"
+                />
+              </div>
+
+              <div className="mt-2 grid grid-cols-1 gap-2">
+                <input
+                  type="text"
+                  value={keyFilter}
+                  onChange={(e) => setKeyFilter(e.target.value)}
+                  placeholder="Filter by key or change"
+                  className="px-2 py-1 text-xs border rounded"
                 />
               </div>
 
@@ -285,8 +423,10 @@ export default function Home() {
                   <div>
                     <span className="font-semibold">With changes: </span>
                     {folderResult.components_with_changes}
-                  </div>
-                </div>
+                  </div>                  <div>
+                    <span className="font-semibold">New-only files: </span>
+                    {(folderResult.new_only || []).length}
+                  </div>                </div>
               )}
             </div>
           </div>
@@ -301,54 +441,11 @@ export default function Home() {
         <div className="grid md:grid-cols-3 gap-4">
           {/* Left: file tree for folder comparison */}
           <div className="bg-white rounded-lg shadow-md p-3 md:p-4 h-[460px] overflow-auto">
-            <h3 className="text-sm font-semibold text-gray-800 mb-2">
-              Folder Results
-            </h3>
-            {!folderResult && (
-              <p className="text-xs text-gray-500">
-                Run a folder comparison to see components and files here.
-              </p>
-            )}
-            {folderResult && (
-              <div className="text-xs space-y-1">
-                {Object.keys(folderTree).length === 0 && (
-                  <p className="text-gray-500">No matched files.</p>
-                )}
-                {Object.entries(folderTree).map(([component, files]) => (
-                  <div key={component} className="mb-2">
-                    <div className="font-semibold text-gray-700">
-                      {component}
-                    </div>
-                    <div className="ml-3 border-l border-gray-200 pl-2 space-y-0.5">
-                      {files.map((fd, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            setActiveSource("folder");
-                            setSelectedFolderDiff(fd);
-                          }}
-                          className={`block w-full text-left px-1 py-0.5 rounded ${
-                            selectedFolderDiff &&
-                            selectedFolderDiff.component_name ===
-                              fd.component_name &&
-                            selectedFolderDiff.file_name === fd.file_name
-                              ? "bg-blue-100 text-blue-800"
-                              : "hover:bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {fd.file_name}{" "}
-                          {fd.has_changes && (
-                            <span className="text-[10px] text-yellow-700">
-                              (changed)
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="flex gap-2 mb-2">
+              <input type="text" placeholder="Search files or folders" value={keyFilter} onChange={(e) => setKeyFilter(e.target.value)} className="flex-1 px-2 py-1 text-xs border rounded" />
+              <input type="text" placeholder="Filter folder" value={componentFilter} onChange={(e) => setComponentFilter(e.target.value)} className="px-2 py-1 text-xs border rounded w-40" />
+            </div>
+            <FolderTree tree={folderTree} onFileSelect={handleSelectFolderFile} search={keyFilter} />
           </div>
 
           {/* Right: diff viewer */}
@@ -374,11 +471,33 @@ export default function Home() {
               <div className="text-xs text-gray-600">
                 <p className="mb-2">
                   This view uses the same side-by-side layout as file
-                  comparison. The underlying diff is generated on the backend;
-                  full file contents are not fetched to keep performance good
-                  for large files.
+                  comparison. The underlying diff is generated on the backend; you
+                  can view the full files and semantic changes here.
                 </p>
-                <DiffViewer oldText={""} newText={""} />
+                <div className="mb-2 flex gap-2">
+                  <input type="text" placeholder="Search in diff" value={keyFilter} onChange={(e) => setKeyFilter(e.target.value)} className="flex-1 px-2 py-1 text-xs border rounded" />
+                </div>
+                <DiffViewer
+                  oldText={selectedFolderDiff.old_text || ""}
+                  newText={selectedFolderDiff.new_text || ""}
+                  semanticChanges={
+                    (selectedFolderDiff.semantic_diff && selectedFolderDiff.semantic_diff.changes) || []
+                  }
+                  searchTerm={keyFilter}
+                />
+
+                {selectedFolderDiff.semantic_diff && (
+                  <div className="mt-3 text-xs">
+                    <div className="font-semibold">Semantic changes:</div>
+                    <ul className="list-disc ml-5">
+                      {selectedFolderDiff.semantic_diff.changes.map((c, i) => (
+                        <li key={i}>
+                          <strong>{c.type}</strong> {c.key || (c.old_key && `${c.old_key} → ${c.new_key}`)}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-xs text-gray-500">

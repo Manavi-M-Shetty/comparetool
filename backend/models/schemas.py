@@ -34,6 +34,18 @@ class FileDiff(BaseModel):
     has_changes: bool
     diff_lines: List[DiffLine]
     unified_diff: List[str]  # Raw unified diff output
+    semantic_diff: Optional[Dict[str, Any]] = None  # Structured semantic diff (if available)
+
+
+class FileDiffSummary(BaseModel):
+    """Lightweight file diff summary used for folder comparison responses."""
+    file_name: str
+    component_name: str
+    has_changes: bool
+    summary: str
+    old_path: str
+    new_path: str
+    semantic_diff: Optional[Dict[str, Any]] = None
 
 
 class CompareFoldersRequest(BaseModel):
@@ -42,13 +54,30 @@ class CompareFoldersRequest(BaseModel):
     new_folder: str
 
 
+from pydantic import Field
+
+
+class FolderNode(BaseModel):
+    """Nested folder node for responses."""
+    name: str
+    path: str
+    subfolders: List["FolderNode"] = Field(default_factory=list)
+    files: List[Dict[str, Any]] = Field(default_factory=list)
+
+
 class CompareFoldersResponse(BaseModel):
     """Response model for folder comparison."""
     total_components: int
     components_with_changes: int
-    file_diffs: List[FileDiff]
+    folder_tree: FolderNode
+    file_summaries: List[FileDiffSummary]
+    old_only: List[str]
+    new_only: List[str]
     errors: List[str]
     summary: List[str]
+
+
+FolderNode.update_forward_refs()
 
 
 class UpdateExcelRequest(BaseModel):

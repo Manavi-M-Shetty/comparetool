@@ -14,52 +14,85 @@ from utils.file_utils import (
 )
 
 
+ALLOWED_EXTENSIONS = {'.json', '.xml', '.yml', '.yaml', '.ini', '.cfg', '.conf', '.txt', '.env', '.properties', '.csv', '.xlsx','.config'}
+
+
+def is_config_file(path: str) -> bool:
+    """Return True if the file has an allowed config extension."""
+    _, ext = os.path.splitext(path)
+    return ext.lower() in ALLOWED_EXTENSIONS
+
+
+def is_probably_binary(path: str, sniff_bytes: int = 4096) -> bool:
+    """Heuristic: read first chunk and check for NUL bytes."""
+    try:
+        with open(path, 'rb') as f:
+            chunk = f.read(sniff_bytes)
+            return b"\x00" in chunk
+    except Exception:
+        return True
+
+
+def build_folder_tree(root: str) -> dict:
+    """
+    Build a nested folder tree dict that mirrors the directory hierarchy of `root`.
+    Each directory node is: {name, path, subfolders: [...], files: [{file_name, path}]}
+    Preserves the order as returned by the filesystem (do not sort so caller's folder order is preserved).
+    Only includes files with allowed extensions and skips probable binary files.
+    """
+    def build_node(current_path: str):
+        node = {
+            "name": os.path.basename(current_path),
+            "path": normalize_path(current_path),
+            "subfolders": [],
+            "files": []
+        }
+
+        try:
+            entries = os.listdir(current_path)
+        except Exception:
+            entries = []
+
+        # Preserve the filesystem order by iterating entries as-is
+        for entry in entries:
+            abs_path = os.path.join(current_path, entry)
+            if safe_isdir(abs_path):
+                node["subfolders"].append(build_node(abs_path))
+            else:
+                # Only include allowed config files and skip binary
+                if is_config_file(entry) and not is_probably_binary(abs_path):
+                    node["files"].append({"file_name": entry, "path": normalize_path(abs_path)})
+
+        return node
+
+    if not path_exists(root) or not safe_isdir(root):
+        return {"name": os.path.basename(root) or root, "path": normalize_path(root), "subfolders": [], "files": []}
+
+    return build_node(root)
+
+
 def scan_configs(root: str) -> Dict[str, List[str]]:
     """
-    Recursively scan folder structure to find components and their config files.
-    Components are identified by subfolder names.
-    
-    Args:
-        root: Root folder path
-        
-    Returns:
-        Dictionary mapping component names to lists of config file paths
+    Recursively scan root and return mapping of component (directory basename) to list of config file paths.
+    Only includes allowed config extensions and skips binary files.
     """
-    components = {}
-    
+    components: Dict[str, List[str]] = {}
     if not path_exists(root) or not safe_isdir(root):
         return components
-    
-    try:
-        entries = safe_listdir(root)
-        
-        for entry in entries:
-            comp_path = os.path.join(root, entry)
-            
-            # Only process directories (components)
-            if safe_isdir(comp_path):
-                files = []
-                
-                # Recursively walk through component directory
-                try:
-                    for root_dir, dirs, file_list in os.walk(comp_path):
-                        for file_name in file_list:
-                            file_path = os.path.join(root_dir, file_name)
-                            # Only include files (skip directories)
-                            if os.path.isfile(file_path):
-                                files.append(normalize_path(file_path))
-                except (PermissionError, IOError, OSError) as e:
-                    print(f"Error scanning {comp_path}: {e}")
-                    continue
-                
-                if files:
-                    components[entry] = files
-                    
-    except (PermissionError, IOError, OSError) as e:
-        print(f"Error scanning root {root}: {e}")
-    
-    return components
 
+    for dirpath, dirnames, filenames in os.walk(root):
+        comp_name = os.path.basename(dirpath) or dirpath
+        files = []
+        for fname in filenames:
+            if not is_config_file(fname):
+                continue
+            file_path = os.path.join(dirpath, fname)
+            if os.path.isfile(file_path) and not is_probably_binary(file_path):
+                files.append(normalize_path(file_path))
+        if files:
+            components.setdefault(comp_name, []).extend(files)
+
+    return components
 
 def match_file_pairs(
     old_root: str, 

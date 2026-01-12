@@ -2,6 +2,17 @@
 
 A full-stack application similar to WinMerge for comparing configuration files across two folders recursively. The tool matches components by subfolder name and config files by filename, generates unified diffs, and automatically updates Excel files with comparison results.
 
+## Quick Start (Windows)
+
+- Start frontend (ensures port 3000 is used):
+  - Open PowerShell in the `frontend` folder and run `./start.bat`
+  - This script will attempt to free port 3000 (if occupied), start Vite with `--strictPort`, and open `http://localhost:3000` automatically.
+- Start backend:
+  - From the project root run `start_all.bat` to open backend and frontend in separate windows, or start the backend manually:
+    - `cd backend` → `uvicorn main:app --reload --port 8000`
+
+Note: The frontend uses a Vite proxy so requests to `/api/*` are forwarded to `http://localhost:8000` (no CORS required).
+
 ## Features
 
 - 🔍 **Recursive Folder Comparison**: Compare two folders containing config files
@@ -311,5 +322,6 @@ This is a production-ready tool. For enhancements:
 ---
 
 **Built with ❤️ for configuration management**
-#   c o m p a r e t o o l  
+#   c o m p a r e t o o l 
+ 
  
