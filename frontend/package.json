@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "set PORT=3000 && vite --strictPort",
+    "dev": "set PORT=3001 && vite --strictPort",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -11,7 +11,8 @@
     "axios": "^1.13.2",
     "react": "^19.2.3",
     "react-diff-viewer": "^3.1.1",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "react-router-dom": "^6.30.3"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

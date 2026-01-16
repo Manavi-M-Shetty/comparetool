@@ -18,10 +18,18 @@ if defined PID (
   )
   set /a RETRIES+=1
   if !RETRIES! gtr 5 (
-    echo "Port 3000 still busy after !RETRIES! attempts. Aborting."
-    echo "Please manually free port 3000 and re-run this script or run `npm run dev` with a different port."
-    pause
-    goto END
+    echo "Port 3000 still busy after !RETRIES! attempts. Falling back to port 3001."
+    echo "Starting dev server on port 3001 instead."
+    set PORT=3001 && npm run dev -- --strictPort
+    if errorlevel 1 (
+      echo Dev server failed to start on port 3001. Check the terminal for errors.
+      pause
+      goto END
+    ) else (
+      echo Dev server started on port 3001.
+      start http://localhost:3001
+      goto END
+    )
   )
   timeout /t 1 /nobreak >nul
   goto CHECKPORT

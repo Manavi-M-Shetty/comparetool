@@ -65,14 +65,22 @@ class FolderNode(BaseModel):
     files: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class MissingFileEntry(BaseModel):
+    """Model for files that exist only on one side of the comparison."""
+    file_path: str
+    component_name: str
+    missing_side: str  # 'OLD' or 'NEW' - indicates which side is missing this file
+    validated: bool = False
+
+
 class CompareFoldersResponse(BaseModel):
     """Response model for folder comparison."""
     total_components: int
     components_with_changes: int
     folder_tree: FolderNode
     file_summaries: List[FileDiffSummary]
-    old_only: List[str]
-    new_only: List[str]
+    old_only_files: List[MissingFileEntry]
+    new_only_files: List[MissingFileEntry]
     errors: List[str]
     summary: List[str]
 
@@ -84,6 +92,7 @@ class UpdateExcelRequest(BaseModel):
     """Request model for updating Excel file."""
     excel_path: str
     file_diffs: List[FileDiff]
+    comments: Optional[Dict[str, Dict[str, str]]] = None  # { file_path: { key: comment } }
 
 
 class UpdateExcelResponse(BaseModel):
@@ -102,5 +111,5 @@ class ScanFoldersRequest(BaseModel):
 class ScanFoldersResponse(BaseModel):
     """Response model for folder scan."""
     matched_pairs: List[FilePair]
-    old_only: List[str]
-    new_only: List[str]
+    old_only_files: List[MissingFileEntry]
+    new_only_files: List[MissingFileEntry]

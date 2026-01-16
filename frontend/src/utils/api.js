@@ -52,14 +52,22 @@ export const compareFolders = async (oldFolder, newFolder) => {
 /**
  * Compare folders and update excel via proxy
  */
-export const compareAndUpdate = async (oldFolder, newFolder, excelPath) => {
+export const compareAndUpdate = async (oldFolder, newFolder, excelPath, missingValidations = [], comments = {}) => {
   const res = await api.post("/compare-and-update", {
     old_folder: oldFolder,
     new_folder: newFolder,
     excel_path: excelPath || null,
+    missing_validations: missingValidations,
+    comments: comments
   });
   return res.data;
 };
+
+export const saveEditedFile = async (payload) => {
+  const res = await api.post("/save-edited-file", payload);
+  return res.data;
+};
+
 
 
 /**

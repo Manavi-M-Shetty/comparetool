@@ -5,7 +5,7 @@ Safely handles Excel file operations and preserves existing formatting.
 import os
 import sys
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -40,6 +40,7 @@ def check_excel_open(excel_path: str) -> bool:
 def update_excel_file(
     excel_path: str,
     file_diffs: List[FileDiff],
+    comments: Optional[Dict[str, Dict[str, str]]] = None,
     sheet_name: str = "Configuration Comparison"
 ) -> Tuple[bool, str, int]:
     """
@@ -91,6 +92,20 @@ def update_excel_file(
         max_row = sheet.max_row
         start_row = max_row + 1
         
+        # Determine if we will write per-key semantic rows (requires expanded headers)
+        will_expand = any((getattr(fd, 'semantic_diff', {}) or {}).get('changes') for fd in file_diffs if getattr(fd, 'has_changes', False))
+        if will_expand:
+            # ensure header has expanded schema
+            try:
+                first_row_values = [cell.value for cell in sheet[1]]
+            except Exception:
+                first_row_values = []
+            if 'Key/Change' not in first_row_values:
+                new_headers = ["Component Name", "Config File Name", "Key/Change", "Old Value", "New Value", "Comment", "Date of Comparison"]
+                # replace first row cells
+                for i, h in enumerate(new_headers, start=1):
+                    sheet.cell(row=1, column=i).value = h
+        
         # Prepare data rows
         updated_rows = 0
         comparison_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -112,32 +127,39 @@ def update_excel_file(
                     parts.append(f"{removed} line(s) removed")
                 change_summary = "; ".join(parts)
             
-            # Add row
-            row_data = [
-                file_diff.component_name,
-                file_diff.file_name,
-                change_summary,
-                comparison_date
-            ]
-            sheet.append(row_data)
-            updated_rows += 1
-        
-        # Auto-adjust column widths
-        for column in sheet.columns:
-            max_length = 0
-            column_letter = get_column_letter(column[0].column)
-            for cell in column:
-                try:
-                    if cell.value:
-                        max_length = max(max_length, len(str(cell.value)))
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 50)
-            sheet.column_dimensions[column_letter].width = adjusted_width
-        
-        # Save workbook
-        workbook.save(excel_path)
-        workbook.close()
+            # If semantic changes exist, expand rows per changed key with comments
+            semantic = getattr(file_diff, 'semantic_diff', None) or {}
+            changes = semantic.get('changes', []) if isinstance(semantic, dict) else []
+
+            if changes:
+                for ch in changes:
+                    key = ch.get('key') or (ch.get('old_key') + ' -> ' + ch.get('new_key', ''))
+                    comment = None
+                    if comments and isinstance(comments, dict):
+                        file_comments = comments.get(getattr(file_diff, 'new_path', '') or '') or {}
+                        comment = file_comments.get(ch.get('key')) or file_comments.get(ch.get('new_key'))
+
+                    row_data = [
+                        file_diff.component_name,
+                        file_diff.file_name,
+                        key,
+                        str(ch.get('old_value')),
+                        str(ch.get('new_value')),
+                        comment or '',
+                        comparison_date
+                    ]
+                    sheet.append(row_data)
+                    updated_rows += 1
+            else:
+                # Add row
+                row_data = [
+                    file_diff.component_name,
+                    file_diff.file_name,
+                    change_summary,
+                    comparison_date
+                ]
+                sheet.append(row_data)
+                updated_rows += 1
         
         message = f"Excel updated successfully. Added {updated_rows} row(s)."
         return True, message, updated_rows

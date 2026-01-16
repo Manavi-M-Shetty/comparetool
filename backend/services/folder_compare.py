@@ -97,46 +97,61 @@ def scan_configs(root: str) -> Dict[str, List[str]]:
 def match_file_pairs(
     old_root: str, 
     new_root: str
-) -> Tuple[List[Dict], List[str], List[str]]:
+) -> Tuple[List[Dict], List[Dict], List[Dict]]:
     """
     Match components and config files between old and new folders.
-    
+
     Args:
         old_root: Path to old folder
         new_root: Path to new folder
-        
+
     Returns:
-        Tuple of (matched_pairs, old_only_components, new_only_components)
+        Tuple of (matched_pairs, old_only_files, new_only_files)
         matched_pairs: List of dicts with component_name, config_file_name, old_path, new_path
+        old_only_files/new_only_files: List of per-file dicts with file_path, component_name, missing_side, validated
     """
     old_components = scan_configs(old_root)
     new_components = scan_configs(new_root)
-    
+
     matched_pairs = []
-    old_only = []
-    new_only = []
-    
+    old_only_files = []
+    new_only_files = []
+
     # Find all unique component names
     all_components = set(old_components.keys()) | set(new_components.keys())
-    
+
     for comp_name in all_components:
         old_files = old_components.get(comp_name, [])
         new_files = new_components.get(comp_name, [])
-        
+
+        # If component exists only in NEW, all its files are missing on the OLD side
         if not old_files and new_files:
-            new_only.append(comp_name)
+            for f in new_files:
+                new_only_files.append({
+                    "file_path": f,
+                    "component_name": comp_name,
+                    "missing_side": "OLD",  # file exists in NEW, missing in OLD
+                    "validated": False
+                })
             continue
+        # If component exists only in OLD, all its files are missing on the NEW side
         elif old_files and not new_files:
-            old_only.append(comp_name)
+            for f in old_files:
+                old_only_files.append({
+                    "file_path": f,
+                    "component_name": comp_name,
+                    "missing_side": "NEW",  # file exists in OLD, missing in NEW
+                    "validated": False
+                })
             continue
-        
+
         # Match files by filename within each component
         old_file_map = {get_filename(f): f for f in old_files}
         new_file_map = {get_filename(f): f for f in new_files}
-        
+
         # Find matched files
         matched_filenames = set(old_file_map.keys()) & set(new_file_map.keys())
-        
+
         for filename in matched_filenames:
             matched_pairs.append({
                 "component_name": comp_name,
@@ -144,5 +159,25 @@ def match_file_pairs(
                 "old_path": old_file_map[filename],
                 "new_path": new_file_map[filename]
             })
-    
-    return matched_pairs, old_only, new_only
+
+        # Files present in OLD but not in NEW for this component
+        for filename, fpath in old_file_map.items():
+            if filename not in matched_filenames:
+                old_only_files.append({
+                    "file_path": fpath,
+                    "component_name": comp_name,
+                    "missing_side": "NEW",
+                    "validated": False
+                })
+
+        # Files present in NEW but not in OLD for this component
+        for filename, fpath in new_file_map.items():
+            if filename not in matched_filenames:
+                new_only_files.append({
+                    "file_path": fpath,
+                    "component_name": comp_name,
+                    "missing_side": "OLD",
+                    "validated": False
+                })
+
+    return matched_pairs, old_only_files, new_only_files
