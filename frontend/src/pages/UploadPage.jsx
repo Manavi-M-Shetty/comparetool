@@ -1,39 +1,64 @@
-import React, { useState } from 'react'
-import { useComparison } from '../context/ComparisonContext'
-import CompareButton from '../components/CompareButton'
+// frontend/src/pages/UploadPage.jsx
+import React, { useState, useEffect } from 'react';
+import { useComparison } from '../context/ComparisonContext';
+import CompareButton from '../components/CompareButton';
 
-export default function UploadPage(){
-  const { oldFolder, newFolder, excelPath, setOldFolder, setNewFolder, setExcelPath, runFolderCompare, missingValidations, folderResult, status, setStatus, runCompareAndUpdate, comments } = useComparison();
+export default function UploadPage() {
+  const {
+    oldFolder,
+    newFolder,
+    excelPath,
+    setOldFolder,
+    setNewFolder,
+    setExcelPath,
+    runFolderCompare,
+    status,
+    setStatus,
+  } = useComparison();
 
   const [localOld, setLocalOld] = useState(oldFolder || '');
   const [localNew, setLocalNew] = useState(newFolder || '');
   const [localExcel, setLocalExcel] = useState(excelPath || '');
 
+  // 🔹 IMPORTANT: keep local inputs in sync with context (workspace change, session restore, etc.)
+  useEffect(() => {
+    setLocalOld(oldFolder || '');
+  }, [oldFolder]);
+
+  useEffect(() => {
+    setLocalNew(newFolder || '');
+  }, [newFolder]);
+
+  useEffect(() => {
+    setLocalExcel(excelPath || '');
+  }, [excelPath]);
+
   const handleCompare = async () => {
-    if (!localOld || !localNew){
-      setStatus({ type: 'error', message: 'Please provide both OLD and NEW folder paths' });
+    if (!localOld || !localNew) {
+      setStatus({
+        type: 'error',
+        message: 'Please provide both OLD and NEW folder paths',
+      });
       return;
     }
-    try{
+
+    // Sync context before running compare
+    setOldFolder(localOld);
+    setNewFolder(localNew);
+    setExcelPath(localExcel);
+
+    try {
       await runFolderCompare(localOld, localNew);
-    }catch(e){/* handled in context */}
+    } catch (e) {
+      // error status is set in context
+    }
   };
 
-  const handleCompareAndUpdate = async ()=>{
-    if (!localOld || !localNew) return;
-
-    const missingFiles = [ ...(folderResult?.old_only_files || []), ...(folderResult?.new_only_files || []) ];
-    const allValidated = missingFiles.length === 0 || missingFiles.every(m => !!missingValidations[m.file_path]);
-    if (localExcel && missingFiles.length > 0 && !allValidated){
-      setStatus({ type: 'error', message: 'All missing files must be reviewed before generating the Excel report.' });
-      return;
-    }
-
-    // build validations list
-    const payloadValidations = Object.keys(missingValidations).map(k => ({ file_path: k, validated: !!missingValidations[k] }));
-    try{
-      await runCompareAndUpdate(payloadValidations, comments);
-    }catch(e){}
+  // Optionally: clean quotes immediately when user types Excel path
+  const handleExcelChange = (e) => {
+    const raw = e.target.value;
+    const cleaned = raw.trim().replace(/^["']|["']$/g, '');
+    setLocalExcel(cleaned);
   };
 
   return (
@@ -43,23 +68,39 @@ export default function UploadPage(){
         <div className="grid md:grid-cols-2 gap-4 mt-4">
           <div>
             <label className="text-xs">OLD folder</label>
-            <input type="text" value={localOld} onChange={(e)=>setLocalOld(e.target.value)} className="w-full border px-2 py-1 text-xs" placeholder="C:\\path\\to\\old" />
+            <input
+              type="text"
+              value={localOld}
+              onChange={(e) => setLocalOld(e.target.value)}
+              className="w-full border px-2 py-1 text-xs"
+              placeholder="C:\\path\\to\\old"
+            />
           </div>
           <div>
             <label className="text-xs">NEW folder</label>
-            <input type="text" value={localNew} onChange={(e)=>setLocalNew(e.target.value)} className="w-full border px-2 py-1 text-xs" placeholder="C:\\path\\to\\new" />
+            <input
+              type="text"
+              value={localNew}
+              onChange={(e) => setLocalNew(e.target.value)}
+              className="w-full border px-2 py-1 text-xs"
+              placeholder="C:\\path\\to\\new"
+            />
           </div>
           <div>
             <label className="text-xs">Excel path (optional)</label>
-            <input type="text" value={localExcel} onChange={(e)=>setLocalExcel(e.target.value)} className="w-full border px-2 py-1 text-xs" placeholder="C:\\path\\to\\workbook.xlsx" />
+            <input
+              type="text"
+              value={localExcel}
+              onChange={handleExcelChange}
+              className="w-full border px-2 py-1 text-xs"
+              placeholder="C:\\path\\to\\workbook.xlsx"
+            />
           </div>
           <div className="flex items-end gap-2">
             <CompareButton onClick={handleCompare} />
-            <CompareButton onClick={handleCompareAndUpdate} >Compare and Update</CompareButton>
           </div>
         </div>
       </div>
-      <div className="mt-4 text-sm text-gray-600">{status?.message}</div>
     </div>
-  )
+  );
 }

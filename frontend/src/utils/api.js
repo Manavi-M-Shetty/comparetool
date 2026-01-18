@@ -41,10 +41,11 @@ export const scanFolders = async (oldFolder, newFolder) => {
 /**
  * Compare two folders via proxy '/api/*' to backend
  */
-export const compareFolders = async (oldFolder, newFolder) => {
+export const compareFolders = async (oldFolder, newFolder, workspaceId) => {
   const res = await api.post("/compare-folders", {
     old_folder: oldFolder,
     new_folder: newFolder,
+    workspace_id: workspaceId,
   });
   return res.data;
 };
@@ -52,13 +53,14 @@ export const compareFolders = async (oldFolder, newFolder) => {
 /**
  * Compare folders and update excel via proxy
  */
-export const compareAndUpdate = async (oldFolder, newFolder, excelPath, missingValidations = [], comments = {}) => {
+export const compareAndUpdate = async (oldFolder, newFolder, excelPath, missingValidations = [], comments = {}, workspaceId) => {
   const res = await api.post("/compare-and-update", {
     old_folder: oldFolder,
     new_folder: newFolder,
     excel_path: excelPath || null,
     missing_validations: missingValidations,
-    comments: comments
+    comments: comments,
+    workspace_id: workspaceId
   });
   return res.data;
 };
@@ -90,5 +92,39 @@ export const compareFilePaths = async (oldPath, newPath) => {
     old_path: oldPath,
     new_path: newPath,
   });
+  return res.data;
+};
+
+/**
+ * Write reviewed changes to Excel
+ */
+export const writeChanges = async (excelPath, changes) => {
+  const res = await api.post("/write-changes", {
+    excel_path: excelPath,
+    changes: changes,
+  });
+  return res.data;
+};
+
+/**
+ * Workspace management
+ */
+export const createWorkspace = async (name, oldFolder = "", newFolder = "", excelPath = "") => {
+  const res = await api.post("/workspace/create", {
+    name,
+    old_folder: oldFolder,
+    new_folder: newFolder,
+    excel_path: excelPath,
+  });
+  return res.data;
+};
+
+export const listWorkspaces = async () => {
+  const res = await api.get("/workspace/list");
+  return res.data.workspaces;
+};
+
+export const getWorkspace = async (name) => {
+  const res = await api.get(`/workspace/${name}`);
   return res.data;
 };

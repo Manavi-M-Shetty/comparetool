@@ -15,11 +15,15 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from models.schemas import (
     CompareRequest, CompareFoldersRequest, CompareFoldersResponse,
     UpdateExcelRequest, UpdateExcelResponse, ScanFoldersRequest, ScanFoldersResponse,
+    WriteChangesRequest, WriteChangesResponse,
+    CompareAndUpdateRequest,
+    WorkspaceCreateRequest, WorkspaceResponse,
     FileDiff
 )
 from services.folder_compare import match_file_pairs
 from services.diff_service import compare_files, generate_diff_summary
-from services.excel_service import update_excel_file
+from services.excel_service import update_excel_file, write_changes_to_excel
+from services.workspace_service import create_workspace, list_workspaces, get_workspace, update_workspace, add_comparison_to_history
 from utils.file_utils import path_exists, safe_isdir, safe_read_file, normalize_path
 
 app = FastAPI(title="Config Compare Tool API", version="1.0.0")
@@ -220,30 +224,16 @@ async def scan_folders_endpoint(request: Request):
 
 
 @app.post("/compare-folders", response_model=CompareFoldersResponse)
-
-
-
-async def compare_folders_endpoint(request: Request):
+async def compare_folders_endpoint(request: CompareFoldersRequest):
     """
     Compare two folders recursively and return a nested folder tree (mirroring OLD folder) with lightweight file summaries.
-    Supports JSON body or form-data (old_folder/new_folder).
     """
-    content_type = request.headers.get("content-type", "")
-    old_root = None
-    new_root = None
+    # Validate workspace
+    if not get_workspace(request.workspace_id):
+        raise HTTPException(status_code=400, detail="Invalid workspace")
 
-    if "application/json" in content_type:
-        try:
-            body =  await request.json()
-            old_root = body.get("old_folder")
-            new_root = body.get("new_folder")
-        except Exception:
-            pass
-    else:
-        # try form fields
-        form = await request.form()
-        old_root = form.get("old_folder")
-        new_root = form.get("new_folder")
+    old_root = request.old_folder
+    new_root = request.new_folder
 
     if not old_root or not new_root:
         raise HTTPException(status_code=400, detail="old_folder and new_folder are required")
@@ -478,8 +468,11 @@ def update_excel_endpoint(request: UpdateExcelRequest):
 
 
 @app.post("/compare-and-update")
-def compare_and_update_endpoint(request: dict):
+def compare_and_update_endpoint(request: CompareAndUpdateRequest):
     """Combined endpoint: Compare folders and optionally update Excel in one operation. Accepts optional 'missing_validations' in request to indicate reviewed missing files."""
+    # Validate workspace
+    if not get_workspace(request.workspace_id):
+        raise HTTPException(status_code=400, detail="Invalid workspace")
 
 
 @app.post("/save-edited-file")
@@ -534,9 +527,9 @@ async def save_edited_file_endpoint(payload: dict):
     Returns:
         Combined result with comparison and Excel update status
     """
-    old_folder = request.get("old_folder")
-    new_folder = request.get("new_folder")
-    excel_path = request.get("excel_path")
+    old_folder = request.old_folder
+    new_folder = request.new_folder
+    excel_path = request.excel_path
     
     if not old_folder or not new_folder:
         raise HTTPException(status_code=400, detail="old_folder and new_folder are required")
@@ -677,3 +670,39 @@ async def save_edited_file_endpoint(payload: dict):
                   f"Found changes in {compare_result['components_with_changes']} components. "
                   f"{excel_result.message if excel_result and excel_result.success else 'Excel update skipped or failed.'}"
     }
+
+
+@app.post("/write-changes", response_model=WriteChangesResponse)
+async def write_changes_endpoint(request: WriteChangesRequest):
+    """Write reviewed changes to Excel file.
+    
+    Args:
+        request: WriteChangesRequest with excel_path and changes
+        
+    Returns:
+        WriteChangesResponse with success status
+    """
+    success, message, written_rows = write_changes_to_excel(request.excel_path, request.changes)
+    return WriteChangesResponse(success=success, message=message, written_rows=written_rows)
+
+
+@app.post("/workspace/create", response_model=WorkspaceResponse)
+async def create_workspace_endpoint(request: WorkspaceCreateRequest):
+    """Create a new workspace."""
+    workspace = create_workspace(request.name, request.old_folder, request.new_folder, request.excel_path)
+    return WorkspaceResponse(**workspace)
+
+
+@app.get("/workspace/list")
+async def list_workspaces_endpoint():
+    """List all workspaces."""
+    return {"workspaces": list_workspaces()}
+
+
+@app.get("/workspace/{name}", response_model=WorkspaceResponse)
+async def get_workspace_endpoint(name: str):
+    """Get workspace by name."""
+    workspace = get_workspace(name)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    return WorkspaceResponse(**workspace)

@@ -99,3 +99,30 @@ def path_exists(path: str) -> bool:
         return os.path.exists(path)
     except (PermissionError, IOError, OSError):
         return False
+
+
+def get_component_name(file_path: str) -> str:
+    """
+    Extract component name from file path based on folder structure.
+    
+    Rules:
+    - If path contains /binaries/ -> componentName = first folder under binaries
+    - If path contains /configs/ -> componentName = first folder under configs
+    - Otherwise -> 'unknown'
+    
+    Args:
+        file_path: Normalized file path
+        
+    Returns:
+        Component name
+    """
+    normalized_path = normalize_path(file_path).replace('\\', '/')
+    
+    if '/binaries/' in normalized_path:
+        parts = normalized_path.split('/binaries/')[1].split('/')
+        return parts[0] if parts else 'unknown'
+    elif '/configs/' in normalized_path:
+        parts = normalized_path.split('/configs/')[1].split('/')
+        return parts[0] if parts else 'unknown'
+    else:
+        return 'unknown'

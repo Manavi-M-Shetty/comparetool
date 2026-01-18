@@ -168,3 +168,93 @@ def update_excel_file(
         return False, "Please close Excel file first", 0
     except Exception as e:
         return False, f"Error updating Excel: {str(e)}", 0
+
+
+def write_changes_to_excel(
+    excel_path: str,
+    changes: List[Dict[str, str]],
+    sheet_name: str = "Reviewed Changes"
+) -> Tuple[bool, str, int]:
+    """
+    Write reviewed changes to Excel file.
+    Creates or appends to sheet with columns: Component Name, File Name, Changed Line, Comment
+    
+    Args:
+        excel_path: Path to Excel file
+        changes: List of change dicts with keys: componentName, fileName, changedLine, comment
+        sheet_name: Name of the sheet to write to
+        
+    Returns:
+        Tuple of (success, message, written_rows)
+    """
+    # Check if Excel is open
+    if check_excel_open(excel_path):
+        return False, "Please close Excel file first", 0
+    
+    try:
+        # Load existing workbook or create new one
+        if path_exists(excel_path):
+            try:
+                workbook = load_workbook(excel_path)
+            except Exception as e:
+                return False, f"Error opening Excel file: {str(e)}", 0
+        else:
+            workbook = Workbook()
+            # Remove default sheet if it exists
+            if "Sheet" in workbook.sheetnames:
+                workbook.remove(workbook["Sheet"])
+        
+        # Get or create the target sheet
+        if sheet_name in workbook.sheetnames:
+            sheet = workbook[sheet_name]
+        else:
+            sheet = workbook.create_sheet(sheet_name)
+            # Add headers if new sheet
+            headers = ["Component Name", "File Name", "Changed Line", "Comment"]
+            sheet.append(headers)
+            # Style headers
+            header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            header_font = Font(bold=True, color="FFFFFF")
+            for cell in sheet[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Find the last row with data
+        max_row = sheet.max_row
+        start_row = max_row + 1
+        
+        written_rows = 0
+        for change in changes:
+            row_data = [
+                change.get('componentName', ''),
+                change.get('fileName', ''),
+                change.get('changedLine', ''),
+                change.get('comment', '')
+            ]
+            sheet.append(row_data)
+            written_rows += 1
+        
+        # Auto-adjust column widths
+        for col_num, column in enumerate(sheet.columns, 1):
+            max_length = 0
+            column_letter = get_column_letter(col_num)
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)  # Cap at 50
+            sheet.column_dimensions[column_letter].width = adjusted_width
+        
+        # Save the workbook
+        workbook.save(excel_path)
+        
+        message = f"Changes written to Excel successfully. Added {written_rows} row(s)."
+        return True, message, written_rows
+        
+    except PermissionError:
+        return False, "Please close Excel file first", 0
+    except Exception as e:
+        return False, f"Error writing to Excel: {str(e)}", 0

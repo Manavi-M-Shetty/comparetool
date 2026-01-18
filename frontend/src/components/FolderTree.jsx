@@ -73,7 +73,6 @@ export default function FolderTree({ title = 'Folder Results', tree = null, onFi
   };
 
   const renderFolder = (node) => {
-    if (!folderHasMatch(node)) return null;
     return (
       <details key={node.path} className="mb-2" open>
         <summary className="font-semibold cursor-pointer">{node.name}</summary>
