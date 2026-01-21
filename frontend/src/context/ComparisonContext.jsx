@@ -13,7 +13,7 @@ import {
   compareFilePaths,
   listWorkspaces,
   createWorkspace,
-  getWorkspace,
+  getWorkspace,deleteWorkspace as apiDeleteWorkspace
 } from '../utils/api';
 
 const SESSION_PREFIX = 'compare_session_v1_';
@@ -354,6 +354,34 @@ export function ComparisonProvider({ children }) {
     await selectWorkspace(name);
   };
 
+
+// inside ComparisonProvider
+const deleteWorkspace = async (name) => {
+  try {
+    await apiDeleteWorkspace(name);
+
+    if (currentWorkspace && currentWorkspace.name === name) {
+      localStorage.removeItem(`compare_session_v1_${name}`);
+      setCurrentWorkspace(null);
+      localStorage.removeItem('current_workspace');
+      setOldFolder('');
+      setNewFolder('');
+      setExcelPath('');
+      setFolderResult(null);
+      setMissingValidations({});
+      setComments({});
+      setEditedFiles({});
+      setSelectedFile(null);
+    }
+
+    await loadWorkspaces();
+    setStatus({ type: 'success', message: `Workspace "${name}" deleted` });
+  } catch (e) {
+    console.error('Failed to delete workspace', e);
+    setStatus({ type: 'error', message: 'Failed to delete workspace' });
+  }
+};
+
   const setComment = (filePath, key, comment) => {
     setComments((c) => {
       const updated = { ...(c || {}) };
@@ -403,6 +431,7 @@ export function ComparisonProvider({ children }) {
     setCurrentWorkspace,
     workspaces,
     setWorkspaces,
+    deleteWorkspace,
   };
 
   return (

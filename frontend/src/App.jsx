@@ -1,3 +1,4 @@
+
 // frontend/src/App.jsx
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { ComparisonProvider, useComparison } from './context/ComparisonContext';
@@ -6,8 +7,8 @@ import ComparisonAndReviewPage from './pages/ComparisonAndReviewPage';
 import ReportPreviewPage from './pages/ReportPreviewPage';
 import WorkspaceModal from './components/WorkspaceModal';
 import WorkspaceSidebar from './components/WorkspaceSidebar';
-import StatusBanner from './components/StatusBanner';   // ✅ import
-import { useState, useEffect } from 'react';
+import StatusBanner from './components/StatusBanner';
+import { useState } from 'react';
 
 function AppContent() {
   const {
@@ -16,13 +17,16 @@ function AppContent() {
     createNewWorkspace,
     selectWorkspace,
   } = useComparison();
-  const [showModal, setShowModal] = useState(true);
 
-  useEffect(() => {
-    if (currentWorkspace) {
-      setShowModal(false);
-    }
-  }, [currentWorkspace]);
+  // 🔹 Show modal only if there is NO saved workspace in localStorage
+  const [showModal, setShowModal] = useState(() => {
+    const savedWs = localStorage.getItem('current_workspace');
+    return !savedWs; // true only for first-ever use
+  });
+
+  // We no longer auto-close the modal when currentWorkspace changes.
+  // It will close when user selects/creates a workspace via WorkspaceModal
+  // (onClose is called there), and after that user can use the sidebar.
 
   return (
     <div className="flex">
@@ -47,7 +51,7 @@ function AppContent() {
           </div>
         </header>
 
-        {/* ✅ Global status bar under the header */}
+        {/* Global status banner */}
         <StatusBanner />
 
         <main className="py-4 flex-1">
@@ -62,10 +66,17 @@ function AppContent() {
         </main>
       </div>
 
+      {/* Workspace selection modal – only shown when showModal is true */}
       {showModal && (
         <WorkspaceModal
-          onCreate={createNewWorkspace}
-          onSelect={selectWorkspace}
+          onCreate={async (name) => {
+            await createNewWorkspace(name);
+            setShowModal(false);
+          }}
+          onSelect={async (name) => {
+            await selectWorkspace(name);
+            setShowModal(false);
+          }}
           workspaces={workspaces}
           onClose={() => setShowModal(false)}
         />

@@ -1,4 +1,3 @@
-// frontend/src/components/WorkspaceSidebar.jsx
 import React, { useState } from 'react';
 import { useComparison } from '../context/ComparisonContext';
 
@@ -8,6 +7,7 @@ export default function WorkspaceSidebar() {
     workspaces,
     createNewWorkspace,
     switchWorkspace,
+    deleteWorkspace,        // from context
   } = useComparison();
 
   const [isCreating, setIsCreating] = useState(false);
@@ -26,9 +26,18 @@ export default function WorkspaceSidebar() {
 
   const handleSwitch = async (name) => {
     if (!name) return;
-    // avoid reloading if already selected
     if (currentWorkspace && currentWorkspace.name === name) return;
     await switchWorkspace(name);
+  };
+
+  const handleDelete = async (name, e) => {
+    // prevent row click (which would switch workspace)
+    e.stopPropagation();
+    const ok = window.confirm(
+      `Are you sure you want to delete workspace "${name}"? This cannot be undone.`
+    );
+    if (!ok) return;
+    await deleteWorkspace(name);
   };
 
   const selectedName = currentWorkspace?.name || null;
@@ -56,17 +65,26 @@ export default function WorkspaceSidebar() {
           const name = getName(wsItem);
           if (!name) return null;
           const isActive = name === selectedName;
+
           return (
-            <button
+            <div
               key={name}
+              role="button"
+              tabIndex={0}
               onClick={() => handleSwitch(name)}
-              className={`w-full text-left px-3 py-2 rounded-md text-sm mb-1 transition-colors ${
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleSwitch(name);
+                }
+              }}
+              className={`w-full px-3 py-2 rounded-md text-sm mb-1 transition-colors flex items-center justify-between cursor-pointer ${
                 isActive
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
               }`}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
                 <span className="truncate">{name}</span>
                 {isActive && (
                   <span className="ml-2 text-[10px] uppercase tracking-wide text-blue-100">
@@ -74,7 +92,17 @@ export default function WorkspaceSidebar() {
                   </span>
                 )}
               </div>
-            </button>
+
+              {/* Delete button */}
+              <button
+                type="button"
+                title="Delete workspace"
+                className="ml-2 text-[12px] text-gray-300 hover:text-red-300"
+                onClick={(e) => handleDelete(name, e)}
+              >
+                🗑
+              </button>
+            </div>
           );
         })}
       </div>
@@ -83,6 +111,7 @@ export default function WorkspaceSidebar() {
       <div className="px-3 py-3 border-t border-gray-800">
         {!isCreating ? (
           <button
+            type="button"
             onClick={() => setIsCreating(true)}
             className="w-full px-3 py-2 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
           >
@@ -99,12 +128,14 @@ export default function WorkspaceSidebar() {
             />
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={handleCreate}
                 className="flex-1 px-3 py-1.5 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 Create
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setIsCreating(false);
                   setNewName('');

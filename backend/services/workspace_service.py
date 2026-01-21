@@ -4,10 +4,14 @@ Workspaces store comparison settings and history.
 """
 import os
 import json
+import shutil                      # ✅ add this
 from typing import Dict, List, Optional
 from pathlib import Path
 
-WORKSPACES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "workspaces")
+WORKSPACES_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "workspaces"
+)
 
 def ensure_workspaces_dir():
     """Ensure workspaces directory exists."""
@@ -69,3 +73,23 @@ def add_comparison_to_history(workspace_name: str, comparison_result: Dict):
     if workspace:
         workspace["history"].append(comparison_result)
         update_workspace(workspace_name, {"history": workspace["history"]})
+
+# ✅ NEW
+def delete_workspace(name: str) -> bool:
+    """
+    Delete a workspace directory (and its metadata/history).
+    
+    Returns:
+        True if the workspace existed and was deleted, False otherwise.
+    """
+    ensure_workspaces_dir()
+    workspace_dir = Path(WORKSPACES_DIR) / name
+    if not workspace_dir.exists() or not workspace_dir.is_dir():
+        return False
+
+    try:
+        shutil.rmtree(workspace_dir)
+        return True
+    except Exception:
+        # you can log the error if you want
+        return False

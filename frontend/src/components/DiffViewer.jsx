@@ -1,28 +1,44 @@
 // frontend/src/components/DiffViewer.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+} from 'react';
 import ReactDiffViewer from 'react-diff-viewer';
+import html2canvas from 'html2canvas';
+import { uploadDiffScreenshot } from '../utils/api';
 
-export default function DiffViewer({
-  oldText = '',
-  newText = '',
-  status,
-  onNewChange,
-  comments = [],            // [{ lineNumber, comment }, ...]
-  onCommentChange,
-  fileName = '',
-}) {
+
+
+const DiffViewer = forwardRef(function DiffViewer(
+  {
+    oldText = '',
+    newText = '',
+    status,
+    onNewChange,
+    comments = [],        // [{ lineNumber, comment, lineContent }, ...]
+    onCommentChange,
+    fileName = '',
+    filePath = '',        // full path for Configs check
+    excelPath = '',       // cleaned Excel path from parent
+  },
+  ref
+) {
   const [editableNewText, setEditableNewText] = useState(newText);
-  const [activeLine, setActiveLine] = useState(null);  // line number with open popover
-  const [popoverTop, setPopoverTop] = useState(null);  // y-position of popover
-  const [tempComment, setTempComment] = useState('');  // comment being edited
-  const containerRef = useRef(null);                   // scrollable diff container
+  const [activeLine, setActiveLine] = useState(null);
+  const [popoverTop, setPopoverTop] = useState(null);
+  const [tempComment, setTempComment] = useState('');
+  const containerRef = useRef(null); // scrollable diff container
+  const diffRef = useRef(null);      // actual diff DOM for screenshot
 
   useEffect(() => {
     setEditableNewText(newText);
     setActiveLine(null);
     setPopoverTop(null);
     setTempComment('');
-  }, [newText, fileName]);
+  }, [newText, fileName, filePath]);
 
   const handleNewChange = (e) => {
     const value = e.target.value;
@@ -33,16 +49,13 @@ export default function DiffViewer({
   const getExistingComment = (lineNumber) =>
     comments.find((c) => c.lineNumber === lineNumber)?.comment || '';
 
-  // Called when a line number in react-diff-viewer is clicked
+  // line number click -> open popover
   const handleLineNumberClick = (lineId, event) => {
-    // lineId is like "L-10" or "R-10"
     const match = String(lineId).match(/\d+/);
     if (!match) return;
-
     const lineNumber = parseInt(match[0], 10);
 
     if (!containerRef.current || !event || !event.clientY) {
-      // Fallback if event/DOM not available
       setActiveLine(lineNumber);
       setPopoverTop(16);
       setTempComment(getExistingComment(lineNumber));
@@ -66,13 +79,169 @@ export default function DiffViewer({
 
   const handleSaveComment = () => {
     if (onCommentChange && activeLine != null) {
-      onCommentChange(activeLine, tempComment);
+      const lines = (editableNewText || '').split('\n');
+      const lineContent = lines[activeLine - 1] || '';
+      onCommentChange(activeLine, tempComment, lineContent);
     }
-    // Close popover after saving
     handleClosePopover();
   };
 
-  // Special cases
+  const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+
+  // ✅ Expose captureScreenshot() to parent and ALWAYS call this hook
+  useImperativeHandle(ref, () => ({
+    async captureScreenshot() {
+      // Only for files under CONFIGS folder
+      const lowerPath = (filePath || '').toLowerCase();
+      const isConfigFile =
+        lowerPath.includes('/configs/') || lowerPath.includes('\\configs\\');
+
+      // We only want real diffs for screenshot
+      const hasDifferences = status === 'modified';
+
+      if (!excelPath) {
+        alert('Excel path not set. Cannot save screenshot.');
+        return;
+      }
+      if (!isConfigFile) {
+        alert('Current file is not under a Configs folder; screenshot skipped.');
+        return;
+      }
+      if (!hasDifferences) {
+        alert('No highlighted differences to capture for this file.');
+        return;
+      }
+      if (!diffRef.current) {
+        console.warn('Diff DOM not ready for screenshot.');
+        return;
+      }
+
+      try {
+        const diffEl = diffRef.current;
+
+        // Retry a few times to wait for highlighted cells
+        const findChangedCellsWithRetry = async (retries = 3, interval = 300) => {
+          for (let attempt = 0; attempt < retries; attempt++) {
+            const cells = diffEl.querySelectorAll(
+              '[class*="diff-added"], [class*="diff-removed"], [class*="diff-changed"]'
+            );
+            if (cells && cells.length > 0) return cells;
+            await delay(interval);
+          }
+          return [];
+        };
+
+        // 1) Find all changed/highlighted cells in the diff (with retry)
+        const changedCells = await findChangedCellsWithRetry();
+        if (!changedCells || changedCells.length === 0) {
+          alert('No highlighted differences found to capture.');
+          return;
+        }
+
+        // 2) Work on the diff table rows (<tr>) so we can clone
+        //    the changed lines + 1 line above and 1 line below.
+        const table = diffEl.querySelector('table');
+        if (!table) {
+          alert('Diff table not found; cannot capture screenshot.');
+          return;
+        }
+
+        const allRows = Array.from(table.querySelectorAll('tr'));
+        const rowIndexSet = new Set();
+
+        changedCells.forEach((cell) => {
+          const row = cell.closest('tr');
+          if (!row) return;
+          const idx = allRows.indexOf(row);
+          if (idx === -1) return;
+
+          // This row has a diff
+          rowIndexSet.add(idx);
+          // One line above
+          if (idx > 0) rowIndexSet.add(idx - 1);
+          // One line below
+          if (idx < allRows.length - 1) rowIndexSet.add(idx + 1);
+        });
+
+        const indices = Array.from(rowIndexSet).sort((a, b) => a - b);
+if (!indices.length) {
+  alert('No highlighted differences found to capture.');
+  return;
+}
+
+// Limit number of rows to avoid a huge canvas
+const MAX_ROWS_FOR_SCREENSHOT = 300; // tweak as needed
+if (indices.length > MAX_ROWS_FOR_SCREENSHOT) {
+  console.warn(
+    `Too many diff rows (${indices.length}). Limiting screenshot to first ${MAX_ROWS_FOR_SCREENSHOT} rows.`
+  );
+  indices.length = MAX_ROWS_FOR_SCREENSHOT;
+}
+
+        // 3) Create a temporary off-screen container with only those rows
+        const tempContainer = document.createElement('div');
+        tempContainer.style.position = 'fixed';
+        tempContainer.style.left = '-10000px';
+        tempContainer.style.top = '0';
+        tempContainer.style.background = '#ffffff';
+        tempContainer.style.padding = '4px';
+
+        const tempTable = document.createElement('table');
+        tempTable.className = table.className;
+        tempTable.style.borderCollapse = 'collapse';
+        tempTable.style.width = 'auto';
+
+        indices.forEach((idx) => {
+          const cloneRow = allRows[idx].cloneNode(true);
+          tempTable.appendChild(cloneRow);
+        });
+
+        tempContainer.appendChild(tempTable);
+        document.body.appendChild(tempContainer);
+
+        // 4) Screenshot just this small temp table
+const canvas = await html2canvas(tempContainer, {
+  backgroundColor: '#ffffff',
+  scale: 1.5, // reduce a bit so image size stays reasonable
+});
+
+// Cleanup temp DOM
+document.body.removeChild(tempContainer);
+
+// 5) Convert canvas directly to Blob
+const blob = await new Promise((resolve, reject) => {
+  canvas.toBlob((b) => {
+    if (!b) {
+      return reject(new Error('Failed to convert canvas to Blob'));
+    }
+    resolve(b);
+  }, 'image/png');
+});
+
+if (!blob || blob.size === 0) {
+  throw new Error('Screenshot blob is empty');
+}
+
+console.log('Screenshot blob size (bytes):', blob.size);
+
+const resp = await uploadDiffScreenshot(
+  excelPath,
+  fileName || 'diff',
+  blob
+);
+console.log('Screenshot upload response:', resp);
+alert(resp.message || 'Screenshot added to Excel.');
+      } catch (err) {
+        console.error('Error capturing diff screenshot:', err);
+        if (err.response && err.response.data) {
+          console.error('Screenshot API error:', err.response.data);
+        }
+        alert('Failed to capture screenshot.');
+      }
+    },
+  }));
+
+  // Special cases can now safely early-return (all hooks are above)
   if (status === 'added') {
     return (
       <div className="p-4 border rounded-lg bg-gray-50">
@@ -97,13 +266,12 @@ export default function DiffViewer({
     );
   }
 
-  // Filter out empty comments for the summary section
   const savedComments = (comments || []).filter(
     (c) => c.comment && c.comment.trim()
   );
 
   return (
-    <div className="mt-2 border rounded-lg overflow-hidden bg-gray-50">
+    <div className="mt-2 border rounded-lg overflow-hidden bg-gray-50 flex flex-col">
       {/* Header */}
       <div className="flex justify-between px-4 py-2 bg-gray-100 text-xs font-medium">
         <span>OLD (Read-only)</span>
@@ -115,18 +283,21 @@ export default function DiffViewer({
         ref={containerRef}
         className="relative h-[360px] overflow-auto text-xs border-b bg-white"
       >
-        <ReactDiffViewer
-          oldValue={oldText || ''}
-          newValue={editableNewText || ''}
-          splitView
-          showDiffOnly={false}
-          onLineNumberClick={handleLineNumberClick}
-          styles={{
-            gutter: { cursor: 'pointer' }, // line numbers look clickable
-          }}
-        />
+        {/* area to screenshot */}
+        <div ref={diffRef}>
+          <ReactDiffViewer
+            oldValue={oldText || ''}
+            newValue={editableNewText || ''}
+            splitView
+            showDiffOnly={false}
+            onLineNumberClick={handleLineNumberClick}
+            styles={{
+              gutter: { cursor: 'pointer' },
+            }}
+          />
+        </div>
 
-        {/* Floating comment popover aligned with clicked line */}
+        {/* Floating comment popover */}
         {activeLine != null && popoverTop != null && (
           <div
             className="absolute right-2 w-72 bg-white border border-emerald-400 rounded-md shadow-lg p-2 z-10"
@@ -143,6 +314,10 @@ export default function DiffViewer({
               >
                 ✕
               </button>
+            </div>
+            <div className="mb-1 text-[11px] text-slate-600 font-mono whitespace-pre-wrap bg-slate-50 border border-slate-200 rounded px-1 py-0.5">
+              {(editableNewText || '').split('\n')[activeLine - 1] ||
+                '(empty line)'}
             </div>
             <textarea
               className="w-full text-xs border rounded p-1.5 resize-none h-16 focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
@@ -163,7 +338,7 @@ export default function DiffViewer({
         )}
       </div>
 
-      {/* Editable NEW textarea */}
+      {/* Editable NEW textarea (full file editor) */}
       <div className="p-4 bg-white border-b">
         <h4 className="font-medium mb-2 text-sm">Edit NEW Content</h4>
         <textarea
@@ -174,27 +349,31 @@ export default function DiffViewer({
         />
       </div>
 
-      {/* Saved comments summary */}
+      {/* Saved comments (this file) */}
       <div className="p-4 bg-gray-50">
-        <h4 className="font-medium mb-2 text-sm">Saved comments</h4>
+        <h4 className="font-medium mb-2 text-sm">Saved comments (this file)</h4>
         {savedComments.length === 0 ? (
           <div className="text-xs text-slate-400">
-            No comments added yet. Click a line number in the diff above to
-            add a comment.
+            No comments added yet.
           </div>
         ) : (
           <div className="space-y-2 text-xs">
             {savedComments.map((c, idx) => (
               <div
                 key={idx}
-                className="p-2 bg-white border rounded flex items-start gap-2"
+                className="p-2 bg-white border rounded flex flex-col gap-1"
               >
-                <span className="text-[11px] font-semibold text-slate-500">
-                  Line {c.lineNumber}:
-                </span>
-                <span className="text-[13px] text-slate-800">
-                  {c.comment}
-                </span>
+                <div className="text-[11px] text-slate-500 font-semibold">
+                  Line {c.lineNumber}
+                </div>
+                {c.lineContent && (
+                  <div className="text-[11px] font-mono text-slate-700 whitespace-pre-wrap bg-slate-50 border border-slate-200 rounded px-1 py-0.5">
+                    {c.lineContent}
+                  </div>
+                )}
+                <div className="text-[12px] text-slate-800">
+                  Comment: {c.comment}
+                </div>
               </div>
             ))}
           </div>
@@ -202,4 +381,6 @@ export default function DiffViewer({
       </div>
     </div>
   );
-}
+});
+
+export default DiffViewer;

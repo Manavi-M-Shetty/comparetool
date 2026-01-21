@@ -128,3 +128,20 @@ export const getWorkspace = async (name) => {
   const res = await api.get(`/workspace/${name}`);
   return res.data;
 };
+
+export const deleteWorkspace = async (name) => {
+  const res = await api.delete(`/workspace/${name}`);
+  return res.data;
+};
+
+
+export const uploadDiffScreenshot = async (excelPath, fileName, imageBlob) => {
+  const formData = new FormData();
+  formData.append('excel_path', excelPath);
+  formData.append('file_name', fileName);
+  formData.append('image', imageBlob, `${fileName || 'diff'}.png`);
+
+  // Do NOT set Content-Type manually – axios will set correct multipart boundaries
+  const res = await axios.post(`${API_BASE_URL}/write-diff-image`, formData);
+  return res.data;
+};

@@ -1,14 +1,17 @@
 """
 FastAPI main application with all endpoints for configuration comparison tool.
 """
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from fastapi import Request
 import sys
 import os
 import difflib
-
+import tempfile
+from io import BytesIO
+from PIL import Image as PILImage, UnidentifiedImageError
+PILImage.MAX_IMAGE_PIXELS = None
 # Add backend directory to path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -22,8 +25,8 @@ from models.schemas import (
 )
 from services.folder_compare import match_file_pairs
 from services.diff_service import compare_files, generate_diff_summary
-from services.excel_service import update_excel_file, write_changes_to_excel
-from services.workspace_service import create_workspace, list_workspaces, get_workspace, update_workspace, add_comparison_to_history
+from services.excel_service import update_excel_file, write_changes_to_excel,add_diff_image_to_excel
+from services.workspace_service import create_workspace, list_workspaces, get_workspace, update_workspace, add_comparison_to_history,delete_workspace
 from utils.file_utils import path_exists, safe_isdir, safe_read_file, normalize_path
 
 app = FastAPI(title="Config Compare Tool API", version="1.0.0")
@@ -706,3 +709,70 @@ async def get_workspace_endpoint(name: str):
     if not workspace:
         raise HTTPException(status_code=404, detail="Workspace not found")
     return WorkspaceResponse(**workspace)
+
+@app.delete("/workspace/{name}")
+async def delete_workspace_endpoint(name: str):
+    """Delete a workspace."""
+    success = delete_workspace(name)
+    if not success:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    return {"success": True}
+
+
+
+@app.post("/write-diff-image")
+async def write_diff_image_endpoint(
+    excel_path: str = Form(...),
+    file_name: str = Form(...),
+    image: UploadFile = File(...)
+):
+    """Receive a screenshot and add it to Excel (Diff Screenshots sheet)."""
+    import uuid
+
+    TEMP_IMG_DIR = os.path.join(os.getcwd(), "temp_images")
+    os.makedirs(TEMP_IMG_DIR, exist_ok=True)
+
+    # Temp file path
+    ext = os.path.splitext(image.filename or "diff.png")[1] or ".png"
+    img_path = os.path.join(TEMP_IMG_DIR, f"{uuid.uuid4()}{ext}")
+
+    # Read all uploaded data
+    image_bytes = await image.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Invalid image upload: empty file")
+
+    # Validate in memory
+    try:
+        with PILImage.open(BytesIO(image_bytes)) as im:
+            im.verify()
+    except UnidentifiedImageError as exc:
+        # Not a valid image
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid image upload: cannot identify image file ({exc})",
+        )
+    except Exception as exc:
+        # Any other Pillow error
+        raise HTTPException(status_code=400, detail=f"Invalid image upload: {exc}")
+
+    # If valid, write to disk
+    with open(img_path, "wb") as f:
+        f.write(image_bytes)
+
+    try:
+        success, message, _ = add_diff_image_to_excel(
+            excel_path=excel_path,
+            file_name=file_name,
+            image_file_path=img_path,
+        )
+    finally:
+        # Cleanup temp file
+        try:
+            os.remove(img_path)
+        except Exception:
+            pass
+
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+
+    return {"success": True, "message": message}

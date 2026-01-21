@@ -1,3 +1,4 @@
+
 // frontend/src/components/StatusBanner.jsx
 import React from 'react';
 import { useComparison } from '../context/ComparisonContext';
@@ -26,3 +27,6 @@ export default function StatusBanner() {
     </div>
   );
 }
+
+
+
