@@ -88,7 +88,7 @@ const DiffViewer = forwardRef(function DiffViewer(
 
   const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
-  // ✅ Expose captureScreenshot() to parent and ALWAYS call this hook
+  // ✅ Expose captureScreenshot() to parent
   useImperativeHandle(ref, () => ({
     async captureScreenshot() {
       // Only for files under CONFIGS folder
@@ -164,19 +164,11 @@ const DiffViewer = forwardRef(function DiffViewer(
         });
 
         const indices = Array.from(rowIndexSet).sort((a, b) => a - b);
-if (!indices.length) {
-  alert('No highlighted differences found to capture.');
-  return;
-}
-
-// Limit number of rows to avoid a huge canvas
-const MAX_ROWS_FOR_SCREENSHOT = 300; // tweak as needed
-if (indices.length > MAX_ROWS_FOR_SCREENSHOT) {
-  console.warn(
-    `Too many diff rows (${indices.length}). Limiting screenshot to first ${MAX_ROWS_FOR_SCREENSHOT} rows.`
-  );
-  indices.length = MAX_ROWS_FOR_SCREENSHOT;
-}
+        if (!indices.length) {
+          alert('No highlighted differences found to capture.');
+          return;
+        }
+        // 🔴 NOTE: no row limit here – ALL highlighted rows (+1 line around) are included.
 
         // 3) Create a temporary off-screen container with only those rows
         const tempContainer = document.createElement('div');
@@ -185,52 +177,88 @@ if (indices.length > MAX_ROWS_FOR_SCREENSHOT) {
         tempContainer.style.top = '0';
         tempContainer.style.background = '#ffffff';
         tempContainer.style.padding = '4px';
+        tempContainer.style.boxSizing = 'border-box';
+
+        // ⚠️ Do NOT constrain width or hide overflow; we want both columns.
+        // tempContainer.style.width = ...;
+        // tempContainer.style.maxWidth = ...;
+        // tempContainer.style.overflowX = 'hidden';
 
         const tempTable = document.createElement('table');
         tempTable.className = table.className;
         tempTable.style.borderCollapse = 'collapse';
+        // Let the table use its natural width (so OLD + NEW are both visible)
         tempTable.style.width = 'auto';
+
+        // Make screenshot text bigger and clearer
+        tempTable.style.fontFamily =
+          '"Consolas","Menlo","Courier New",monospace';
+        tempTable.style.fontSize = '16px';   // adjust if you want larger text
+        tempTable.style.lineHeight = '1.5';
 
         indices.forEach((idx) => {
           const cloneRow = allRows[idx].cloneNode(true);
+
+          // Standardize padding for readability
+          cloneRow.querySelectorAll('td, th').forEach((cell) => {
+            cell.style.padding = '2px 8px';
+          });
+
           tempTable.appendChild(cloneRow);
         });
 
         tempContainer.appendChild(tempTable);
         document.body.appendChild(tempContainer);
 
-        // 4) Screenshot just this small temp table
-const canvas = await html2canvas(tempContainer, {
-  backgroundColor: '#ffffff',
-  scale: 1.5, // reduce a bit so image size stays reasonable
-});
+        // Force layout so offsetWidth/offsetHeight are accurate
+        const width = tempContainer.offsetWidth || MAX_VISUAL_WIDTH;
+        const height = tempContainer.offsetHeight || 1000;
 
-// Cleanup temp DOM
-document.body.removeChild(tempContainer);
+        // 4) Choose a scale dynamically so we don't exceed canvas limits
+        let targetScale = 2; // ideal DPI for clarity
+        const MAX_CANVAS_SIDE = 14000; // safe upper bound for most browsers
 
-// 5) Convert canvas directly to Blob
-const blob = await new Promise((resolve, reject) => {
-  canvas.toBlob((b) => {
-    if (!b) {
-      return reject(new Error('Failed to convert canvas to Blob'));
-    }
-    resolve(b);
-  }, 'image/png');
-});
+        // Estimated max side if we rendered at targetScale
+        const estMaxSide = Math.max(width * targetScale, height * targetScale);
+        if (estMaxSide > MAX_CANVAS_SIDE) {
+          // Reduce scale to fit within MAX_CANVAS_SIDE
+          const factor = MAX_CANVAS_SIDE / estMaxSide;
+          targetScale = Math.max(0.8, targetScale * factor); // don't go below 0.8
+        }
 
-if (!blob || blob.size === 0) {
-  throw new Error('Screenshot blob is empty');
-}
+        const canvas = await html2canvas(tempContainer, {
+          backgroundColor: '#ffffff',
+          scale: targetScale,
+        });
 
-console.log('Screenshot blob size (bytes):', blob.size);
+        console.log('Canvas size:', canvas.width, canvas.height);
 
-const resp = await uploadDiffScreenshot(
-  excelPath,
-  fileName || 'diff',
-  blob
-);
-console.log('Screenshot upload response:', resp);
-alert(resp.message || 'Screenshot added to Excel.');
+        // Cleanup temp DOM
+        document.body.removeChild(tempContainer);
+
+        // 5) Convert canvas directly to Blob
+        const blob = await new Promise((resolve, reject) => {
+          canvas.toBlob((b) => {
+            if (!b) {
+              return reject(new Error('Failed to convert canvas to Blob'));
+            }
+            resolve(b);
+          }, 'image/png');
+        });
+
+        if (!blob || blob.size === 0) {
+          throw new Error('Screenshot blob is empty');
+        }
+
+        console.log('Screenshot blob size (bytes):', blob.size);
+
+        const resp = await uploadDiffScreenshot(
+          excelPath,
+          fileName || 'diff',
+          blob
+        );
+        console.log('Screenshot upload response:', resp);
+        alert(resp.message || 'Screenshot added to Excel.');
       } catch (err) {
         console.error('Error capturing diff screenshot:', err);
         if (err.response && err.response.data) {

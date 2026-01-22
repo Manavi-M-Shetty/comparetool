@@ -6,13 +6,16 @@ import os
 import sys
 from datetime import datetime
 from typing import List, Optional, Tuple, Dict
+from PIL import Image as PILImage
+from openpyxl.drawing.image import Image as XLImage
+
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
-from openpyxl.drawing.image import Image as XLImage
+
 
 from models.schemas import FileDiff
 from utils.file_utils import path_exists
@@ -39,82 +42,111 @@ def check_excel_open(excel_path: str) -> bool:
     return True
 
 
-from PIL import Image as PILImage
-from openpyxl.drawing.image import Image as XLImage
-import os
 
 def add_diff_image_to_excel(
     excel_path: str,
     file_name: str,
     image_file_path: str,
-):
+    sheet_name: str = "Diff Screenshots"
+) -> Tuple[bool, str, int]:
+  """
+  Add a screenshot image to the given Excel file in a separate sheet.
+
+  - Each image is placed in its own block of rows so they don't overlap.
+  - Images are scaled only by WIDTH (max width), so height stays
+    proportional to the original image.
+  - Taller screenshots will occupy a taller row; smaller ones a shorter row.
+  """
+  # Check if Excel is open
+  if check_excel_open(excel_path):
+    return False, "Please close Excel file first", 0
+
+  try:
+    # Load existing workbook or create new one
+    if path_exists(excel_path):
+      workbook = load_workbook(excel_path)
+    else:
+      workbook = Workbook()
+      if "Sheet" in workbook.sheetnames:
+        workbook.remove(workbook["Sheet"])
+
+    # Get or create the target sheet
+    if sheet_name in workbook.sheetnames:
+      sheet = workbook[sheet_name]
+    else:
+      sheet = workbook.create_sheet(sheet_name)
+      # Header row
+      sheet.append(["File Name", "Timestamp", "Screenshot"])
+
+    # --- Decide where to put the next screenshot ---
+    # If only header present (row 1), start at row 3
+    if sheet.max_row <= 1:
+      meta_row = 3
+    else:
+      # Small fixed gap after the last used row so images don't touch
+      GAP_ROWS = 3
+      meta_row = sheet.max_row + GAP_ROWS
+
+    # Meta info (file name + timestamp)
+    sheet.cell(row=meta_row, column=1, value=file_name)
+    sheet.cell(
+      row=meta_row,
+      column=2,
+      value=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    )
+
+    # Row where image will be anchored (1 row below metadata)
+    image_row = meta_row + 1
+
+    # --- Load and scale image (WIDTH only) ---
+    img = XLImage(image_file_path)
+
+    # Original size from html2canvas (pixels)
+    orig_width = img.width or 1
+    orig_height = img.height or 1
+
+    # Allow the image to be fairly wide, but don't go beyond MAX_WIDTH_PX
+    MAX_WIDTH_PX = 2800
+    if orig_width > MAX_WIDTH_PX:
+      scale = MAX_WIDTH_PX / float(orig_width)
+    else:
+      scale = 1.0  # keep original scale if already narrow enough
+
+    new_width = int(orig_width * scale)
+    new_height = int(orig_height * scale)
+
+    img.width = new_width
+    img.height = new_height
+
+    # Anchor image at column C in the chosen row
+    img.anchor = f"C{image_row}"
+    sheet.add_image(img)
+
+    # --- Layout tuning ---
+
+    # Make column C roughly match the image width (Excel units ≈ px / 7.5)
+    desired_width = new_width / 7.5
+    col_dim = sheet.column_dimensions["C"]
+    current_width = col_dim.width or 0
+    if desired_width > current_width:
+      col_dim.width = desired_width
+
+    # Set the height of the image row so the image fits within that row.
+    # Approx conversion: 1 px ≈ 0.75 points in Excel.
     try:
-        if not os.path.exists(excel_path):
-            return False, f"Excel file not found: {excel_path}", 0
+      sheet.row_dimensions[image_row].height = new_height * 0.75
+    except Exception:
+      pass
 
-        wb = load_workbook(excel_path)
+    # No need for bottom_row / used_rows_for_image hacks:
+    # the tall row itself gives enough vertical space.
+    workbook.save(excel_path)
+    return True, "Diff image added clearly", 1
 
-        sheet_name = "Diff Screenshots"
-        if sheet_name not in wb.sheetnames:
-            ws = wb.create_sheet(sheet_name)
-            ws["B1"] = "Diff Screenshots"
-            start_row = 3
-        else:
-            ws = wb[sheet_name]
-            start_row = ws.max_row + 4  # 👈 2 empty rows gap
-
-        # -----------------------------------
-        # Load image WITHOUT shrinking text
-        # -----------------------------------
-        pil_img = PILImage.open(image_file_path)
-
-        ORIGINAL_WIDTH, ORIGINAL_HEIGHT = pil_img.size
-
-        # Scale down ONLY if extremely large
-        MAX_WIDTH = 1600  # ideal for Excel readability
-
-        scale = 1.0
-        if ORIGINAL_WIDTH > MAX_WIDTH:
-            scale = MAX_WIDTH / ORIGINAL_WIDTH
-
-        new_width = int(ORIGINAL_WIDTH * scale)
-        new_height = int(ORIGINAL_HEIGHT * scale)
-
-        resized_img = pil_img.resize(
-            (new_width, new_height),
-            PILImage.Resampling.LANCZOS
-        )
-
-        temp_path = image_file_path.replace(".", "_excel.")
-        resized_img.save(temp_path)
-
-        # -----------------------------------
-        # Insert image
-        # -----------------------------------
-        xl_img = XLImage(temp_path)
-        ws.add_image(xl_img, f"B{start_row}")
-
-        # -----------------------------------
-        # Excel layout tuning
-        # -----------------------------------
-        ws.column_dimensions["B"].width = 200 / 7  # ~200px
-        ws.row_dimensions[start_row].height = new_height * 0.75
-
-        # Label
-        ws[f"B{start_row + 1}"] = f"File: {file_name}"
-
-        wb.save(excel_path)
-
-        try:
-            os.remove(temp_path)
-        except Exception:
-            pass
-
-        return True, "Diff image added clearly", 1
-
-    except Exception as exc:
-        return False, f"Failed to add diff image: {exc}", 0
-
+  except PermissionError:
+    return False, "Please close Excel file first", 0
+  except Exception as exc:
+    return False, f"Error writing screenshot to Excel: {exc}", 0
 
 def update_excel_file(
     excel_path: str,
