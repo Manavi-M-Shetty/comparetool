@@ -106,7 +106,7 @@ def add_diff_image_to_excel(
     orig_height = img.height or 1
 
     # Allow the image to be fairly wide, but don't go beyond MAX_WIDTH_PX
-    MAX_WIDTH_PX = 2800
+    MAX_WIDTH_PX = 1800
     if orig_width > MAX_WIDTH_PX:
       scale = MAX_WIDTH_PX / float(orig_width)
     else:

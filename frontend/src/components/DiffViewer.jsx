@@ -2,6 +2,7 @@
 import React, {
   useState,
   useEffect,
+  useLayoutEffect,
   useRef,
   forwardRef,
   useImperativeHandle,
@@ -23,6 +24,7 @@ const DiffViewer = forwardRef(function DiffViewer(
     fileName = '',
     filePath = '',        // full path for Configs check
     excelPath = '',       // cleaned Excel path from parent
+    onReady,             // callback when diff is ready
   },
   ref
 ) {
@@ -39,7 +41,12 @@ const DiffViewer = forwardRef(function DiffViewer(
     setPopoverTop(null);
     setTempComment('');
   }, [newText, fileName, filePath]);
-
+  
+  useLayoutEffect(() => {
+    // notify parent that diff DOM is fully rendered
+    window.dispatchEvent(new CustomEvent('diff-rendered', { detail: { fileName, filePath } }));
+    if (onReady) onReady();
+  }, [oldText, editableNewText, fileName]);
   const handleNewChange = (e) => {
     const value = e.target.value;
     setEditableNewText(value);
@@ -90,7 +97,7 @@ const DiffViewer = forwardRef(function DiffViewer(
 
   // ✅ Expose captureScreenshot() to parent
   useImperativeHandle(ref, () => ({
-    async captureScreenshot() {
+    async captureScreenshot(options = {}) {
       // Only for files under CONFIGS folder
       const lowerPath = (filePath || '').toLowerCase();
       const isConfigFile =
@@ -100,15 +107,15 @@ const DiffViewer = forwardRef(function DiffViewer(
       const hasDifferences = status === 'modified';
 
       if (!excelPath) {
-        alert('Excel path not set. Cannot save screenshot.');
+        if (!options.silent) alert('Excel path not set. Cannot save screenshot.');
         return;
       }
       if (!isConfigFile) {
-        alert('Current file is not under a Configs folder; screenshot skipped.');
+        if (!options.silent) alert('Current file is not under a Configs folder; screenshot skipped.');
         return;
       }
       if (!hasDifferences) {
-        alert('No highlighted differences to capture for this file.');
+        if (!options.silent) alert('No highlighted differences to capture for this file.');
         return;
       }
       if (!diffRef.current) {
@@ -258,13 +265,13 @@ const DiffViewer = forwardRef(function DiffViewer(
           blob
         );
         console.log('Screenshot upload response:', resp);
-        alert(resp.message || 'Screenshot added to Excel.');
+        if (!options.silent) alert(resp.message || 'Screenshot added to Excel.');
       } catch (err) {
         console.error('Error capturing diff screenshot:', err);
         if (err.response && err.response.data) {
           console.error('Screenshot API error:', err.response.data);
         }
-        alert('Failed to capture screenshot.');
+        if (!options.silent) alert('Failed to capture screenshot.');
       }
     },
   }));

@@ -28,9 +28,13 @@ export default function ComparisonAndReviewPage() {
   const [newText, setNewText] = useState('');
   const [fileStatus, setFileStatus] = useState('');
   const [currentComments, setCurrentComments] = useState([]);
+  const [diffReady, setDiffReady] = useState(false);
   const [capturingAll, setCapturingAll] = useState(false);
 
   const diffViewerRef = useRef(null);
+  const readyResolveRef = useRef(null);
+  const selectedFilePromiseRef = useRef(null);
+  const expectedSelectedFileRef = useRef(null);
 
   const normalizePath = (p) => (p || '').replace(/\\/g, '/');
 
@@ -95,7 +99,16 @@ export default function ComparisonAndReviewPage() {
     loadCommentsForFile(selectedFile);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFile, comments]);
-
+  // Resolve promise when selectedFile matches expected
+  useEffect(() => {
+    if (expectedSelectedFileRef.current && selectedFile && getFileKey(selectedFile) === getFileKey(expectedSelectedFileRef.current)) {
+      if (selectedFilePromiseRef.current) {
+        selectedFilePromiseRef.current();
+        selectedFilePromiseRef.current = null;
+      }
+      expectedSelectedFileRef.current = null;
+    }
+  }, [selectedFile]);
   const loadFileDiff = async (file) => {
     const oldPath = file.old_path;
     const newPath = file.new_path;
@@ -316,6 +329,18 @@ export default function ComparisonAndReviewPage() {
     }));
   };
 
+  const waitForDiffRender = (expectedFile) =>
+    new Promise((resolve) => {
+      const handler = (event) => {
+        const { fileName, filePath } = event.detail || {};
+        if (fileName === expectedFile.file_name && filePath === expectedFile.old_path) {
+          window.removeEventListener('diff-rendered', handler);
+          resolve();
+        }
+      };
+      window.addEventListener('diff-rendered', handler);
+    });
+
   // ✅ Button 1: capture screenshot for current file (only if modified)
   const handleCaptureCurrentConfig = async () => {
     if (!diffViewerRef.current) {
@@ -374,14 +399,31 @@ export default function ComparisonAndReviewPage() {
           has_changes: fs.has_changes,
         };
 
+        readyResolveRef.current = null;
+        const readyPromise = new Promise((resolve) => {
+          readyResolveRef.current = resolve;
+        });
+
+        setDiffReady(false);
+        expectedSelectedFileRef.current = fileObj;
+        selectedFilePromiseRef.current = null;
+        const selectedPromise = new Promise((resolve) => {
+          selectedFilePromiseRef.current = resolve;
+        });
         setSelectedFile(fileObj);
-        // wait for diff to load and render
-        await new Promise((res) => setTimeout(res, 800));
+        await selectedPromise; // wait for selectedFile to update
+
+        // Ensure file diff is loaded before proceeding
+        await loadFileDiff(fileObj);
+
+        // Wait until DiffViewer is ready
+        await readyPromise;
 
         if (diffViewerRef.current) {
-          await diffViewerRef.current.captureScreenshot();
+          await diffViewerRef.current.captureScreenshot({ silent: true });
           await new Promise((res) => setTimeout(res, 300));
         }
+
       }
 
       setStatus({
@@ -551,6 +593,7 @@ export default function ComparisonAndReviewPage() {
             <div className="flex-1 min-h-0 overflow-auto p-3">
               {selectedFile ? (
                 <DiffViewer
+                  key={getFileKey(selectedFile)}
                   ref={diffViewerRef}
                   oldText={oldText}
                   newText={newText}
@@ -563,6 +606,13 @@ export default function ComparisonAndReviewPage() {
                     selectedFile.new_path || selectedFile.old_path || ''
                   }
                   excelPath={cleanedExcelPath}
+                  onReady={() => {
+                    setDiffReady(true);
+                    if (readyResolveRef.current) {
+                      readyResolveRef.current();
+                      readyResolveRef.current = null;
+                    }
+                  }}
                 />
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-center text-sm text-slate-500">
