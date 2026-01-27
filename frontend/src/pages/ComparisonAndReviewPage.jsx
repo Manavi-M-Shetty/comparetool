@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import FolderTree from '../components/FolderTree';
 import DiffViewer from '../components/DiffViewer';
+import ProcessingOverlay from '../components/ProcessingOverlay';
 import { useComparison } from '../context/ComparisonContext';
 import {
   compareFilePaths,
@@ -13,6 +14,7 @@ import { getComponentName } from '../utils/fileUtils';
 export default function ComparisonAndReviewPage() {
   const {
     folderResult,
+    setFolderResult, 
     selectedFile,
     setSelectedFile,
     missingValidations,
@@ -31,6 +33,15 @@ export default function ComparisonAndReviewPage() {
   const [diffReady, setDiffReady] = useState(false);
   const [capturingAll, setCapturingAll] = useState(false);
 
+  // Animation Overlay State
+  const [captureProgress, setCaptureProgress] = useState({ 
+    isVisible: false, 
+    currentFile: '', 
+    progress: 0, 
+    total: 0, 
+    current: 0 
+  });
+
   const diffViewerRef = useRef(null);
   const readyResolveRef = useRef(null);
   const selectedFilePromiseRef = useRef(null);
@@ -47,16 +58,14 @@ export default function ComparisonAndReviewPage() {
   const fileSummaryMap = useMemo(() => {
     const map = {};
     (folderResult?.file_summaries || []).forEach((fs) => {
-      if (fs.old_path) {
-        map[normalizePath(fs.old_path)] = fs;
-      }
+      if (fs.old_path) map[normalizePath(fs.old_path)] = fs;
+      if (fs.new_path) map[normalizePath(fs.new_path)] = fs;
     });
     return map;
   }, [folderResult]);
 
   const enrichTree = (node) => {
     if (!node) return null;
-
     const enrichedFiles = (node.files || []).map((f) => {
       const key = normalizePath(f.path);
       const meta = fileSummaryMap[key] || {};
@@ -66,11 +75,9 @@ export default function ComparisonAndReviewPage() {
         file_name: meta.file_name || f.file_name || f.name,
       };
     });
-
     const enrichedSubfolders = (node.subfolders || []).map((sub) =>
       enrichTree(sub)
     );
-
     return {
       ...node,
       files: enrichedFiles,
@@ -86,7 +93,6 @@ export default function ComparisonAndReviewPage() {
   const getFileKey = (file) =>
     file?.new_path || file?.old_path || file?.file_name;
 
-  // Load diff + comments when a file is selected
   useEffect(() => {
     if (!selectedFile) {
       setOldText('');
@@ -94,12 +100,11 @@ export default function ComparisonAndReviewPage() {
       setCurrentComments([]);
       return;
     }
-
     loadFileDiff(selectedFile);
     loadCommentsForFile(selectedFile);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFile, comments]);
-  // Resolve promise when selectedFile matches expected
+
   useEffect(() => {
     if (expectedSelectedFileRef.current && selectedFile && getFileKey(selectedFile) === getFileKey(expectedSelectedFileRef.current)) {
       if (selectedFilePromiseRef.current) {
@@ -109,11 +114,12 @@ export default function ComparisonAndReviewPage() {
       expectedSelectedFileRef.current = null;
     }
   }, [selectedFile]);
+
   const loadFileDiff = async (file) => {
     const oldPath = file.old_path;
     const newPath = file.new_path;
 
-    // Only in OLD (missing in NEW)
+    // 1. Missing in NEW
     if (file.summary === 'Missing in NEW' || file.missing_side === 'NEW') {
       try {
         const response = await compareFilePaths(oldPath, oldPath);
@@ -123,14 +129,11 @@ export default function ComparisonAndReviewPage() {
       }
       setNewText('File is missing in NEW; no content to compare.');
       setFileStatus('missing_new');
-      setStatus({
-        type: 'info',
-        message: 'File exists only in OLD. Showing OLD content.',
-      });
+      setStatus({ type: 'info', message: 'File exists only in OLD. Showing OLD content.' });
       return;
     }
 
-    // Only in NEW (missing in OLD)
+    // 2. Missing in OLD
     if (file.summary === 'Missing in OLD' || file.missing_side === 'OLD') {
       try {
         const response = await compareFilePaths(newPath, newPath);
@@ -140,19 +143,43 @@ export default function ComparisonAndReviewPage() {
       }
       setOldText('File is missing in OLD; no original content to compare.');
       setFileStatus('added');
-      setStatus({
-        type: 'info',
-        message: 'File exists only in NEW. Showing NEW content.',
-      });
+      setStatus({ type: 'info', message: 'File exists only in NEW. Showing NEW content.' });
       return;
     }
 
-    // Normal case: both sides exist
+    // 3. Normal Compare
     try {
       const response = await compareFilePaths(oldPath, newPath);
-      setOldText(response.old_text || '');
-      setNewText(response.new_text || '');
-      setFileStatus(file.has_changes ? 'modified' : 'identical');
+      const oText = response.old_text || '';
+      const nText = response.new_text || '';
+      
+      setOldText(oText);
+      setNewText(nText);
+
+      // 🔹 FIX: Normalize text to ignore CRLF vs LF differences
+      const normalizedOld = oText.replace(/\r\n/g, '\n').trim();
+      const normalizedNew = nText.replace(/\r\n/g, '\n').trim();
+
+      if (normalizedOld === normalizedNew) {
+        setFileStatus('identical');
+
+        // 🔹 UPDATE GLOBAL STATE if backend wrongly thought it was modified
+        if (file.has_changes) {
+            console.log('Auto-correction: Backend marked modified, but content is identical.');
+            setFolderResult(prev => {
+                if (!prev) return prev;
+                const newSummaries = prev.file_summaries.map(fs => {
+                    const isSameFile = (fs.old_path && fs.old_path === oldPath) || (fs.new_path && fs.new_path === newPath);
+                    if (isSameFile) return { ...fs, has_changes: false };
+                    return fs;
+                });
+                return { ...prev, file_summaries: newSummaries };
+            });
+        }
+      } else {
+        setFileStatus(file.has_changes ? 'modified' : 'identical');
+      }
+
     } catch (error) {
       console.error('Error loading diff:', error);
       setStatus({ type: 'error', message: 'Error loading file diff' });
@@ -162,21 +189,12 @@ export default function ComparisonAndReviewPage() {
   const loadCommentsForFile = (file) => {
     const fileKey = getFileKey(file);
     const fileCommentsObj = comments[fileKey] || {};
-
     const arr = Object.entries(fileCommentsObj).map(
       ([lineNumber, value]) => {
         if (typeof value === 'string') {
-          return {
-            lineNumber: Number(lineNumber),
-            comment: value,
-            lineContent: '',
-          };
+          return { lineNumber: Number(lineNumber), comment: value, lineContent: '' };
         }
-        return {
-          lineNumber: Number(lineNumber),
-          comment: value?.comment || '',
-          lineContent: value?.lineContent || '',
-        };
+        return { lineNumber: Number(lineNumber), comment: value?.comment || '', lineContent: value?.lineContent || '' };
       }
     );
     setCurrentComments(arr);
@@ -184,36 +202,24 @@ export default function ComparisonAndReviewPage() {
 
   const handleNewChange = (content) => {
     setNewText(content);
-    if (selectedFile) {
-      setEditedContent(getFileKey(selectedFile), content);
-    }
+    if (selectedFile) setEditedContent(getFileKey(selectedFile), content);
   };
 
   const handleCommentChange = (lineNumber, comment, lineContent = '') => {
     const updatedComments = [...currentComments];
-    const idx = updatedComments.findIndex(
-      (c) => c.lineNumber === lineNumber
-    );
-
+    const idx = updatedComments.findIndex((c) => c.lineNumber === lineNumber);
     if (idx >= 0) {
-      updatedComments[idx] = {
-        ...updatedComments[idx],
-        comment,
-        lineContent,
-      };
+      updatedComments[idx] = { ...updatedComments[idx], comment, lineContent };
     } else {
       updatedComments.push({ lineNumber, comment, lineContent });
     }
-
     setCurrentComments(updatedComments);
-
     const fileKey = getFileKey(selectedFile);
     setComment(fileKey, lineNumber, { comment, lineContent });
   };
 
   const handleSaveEditedFile = async () => {
     if (!selectedFile) return;
-
     try {
       await apiSaveEditedFile({
         file_path: selectedFile.new_path,
@@ -232,43 +238,20 @@ export default function ComparisonAndReviewPage() {
       return;
     }
     if (!folderResult) {
-      setStatus({
-        type: 'error',
-        message: 'No comparison data available to write',
-      });
+      setStatus({ type: 'error', message: 'No comparison data available to write' });
       return;
     }
 
     const allChanges = [];
-
     Object.entries(comments).forEach(([fileKey, commentMap]) => {
-      const file = folderResult.file_summaries?.find(
-        (f) =>
-          (f.new_path || f.old_path || f.file_name) === fileKey
-      );
+      const file = folderResult.file_summaries?.find(f => (f.new_path || f.old_path || f.file_name) === fileKey);
       if (!file) return;
-
-      const componentName = getComponentName(
-        file.new_path || file.old_path
-      );
-
+      const componentName = getComponentName(file.new_path || file.old_path);
       Object.entries(commentMap).forEach(([lineNumber, value]) => {
-        let commentText, lineContent;
-        if (typeof value === 'string') {
-          commentText = value;
-          lineContent = '';
-        } else {
-          commentText = value?.comment || '';
-          lineContent = value?.lineContent || '';
-        }
-
+        let commentText = typeof value === 'string' ? value : value?.comment || '';
+        let lineContent = typeof value === 'string' ? '' : value?.lineContent || '';
         if (!commentText || !commentText.trim()) return;
-
-        const changedLineValue =
-          lineContent && lineContent.trim().length > 0
-            ? lineContent
-            : `Line ${lineNumber}`;
-
+        const changedLineValue = lineContent && lineContent.trim().length > 0 ? lineContent : `Line ${lineNumber}`;
         allChanges.push({
           componentName,
           fileName: file.file_name,
@@ -278,118 +261,108 @@ export default function ComparisonAndReviewPage() {
       });
     });
 
-    console.log('Excel path (raw):', excelPath);
-    console.log('Excel path (clean):', cleanedExcelPath);
-    console.log('Changes payload:', allChanges);
-
     if (allChanges.length === 0) {
-      setStatus({
-        type: 'info',
-        message: 'No comments to write to Excel.',
-      });
+      setStatus({ type: 'info', message: 'No comments to write to Excel.' });
       return;
     }
 
     try {
       const res = await apiWriteChanges(cleanedExcelPath, allChanges);
-      console.log('write-changes response:', res);
-
       if (!res.success) {
-        setStatus({
-          type: 'error',
-          message: res.message || 'Excel write failed',
-        });
+        setStatus({ type: 'error', message: res.message || 'Excel write failed' });
       } else {
-        setStatus({
-          type: 'success',
-          message:
-            res.message ||
-            `Changes written to Excel successfully. Added ${res.written_rows} row(s).`,
-        });
+        setStatus({ type: 'success', message: res.message || `Changes written to Excel successfully. Added ${res.written_rows} row(s).` });
       }
     } catch (error) {
       console.error('Error writing to Excel:', error);
-      if (error.response && error.response.data) {
-        console.error(
-          'write-changes validation or server error:',
-          error.response.data
-        );
-      }
-      setStatus({
-        type: 'error',
-        message: 'Error writing to Excel',
-      });
+      setStatus({ type: 'error', message: 'Error writing to Excel' });
     }
   };
 
   const handleToggleValidation = (filePath, checked) => {
-    setMissingValidations((prev) => ({
-      ...prev,
-      [filePath]: checked,
-    }));
+    setMissingValidations((prev) => ({ ...prev, [filePath]: checked }));
   };
 
-  const waitForDiffRender = (expectedFile) =>
-    new Promise((resolve) => {
-      const handler = (event) => {
-        const { fileName, filePath } = event.detail || {};
-        if (fileName === expectedFile.file_name && filePath === expectedFile.old_path) {
-          window.removeEventListener('diff-rendered', handler);
-          resolve();
-        }
-      };
-      window.addEventListener('diff-rendered', handler);
-    });
-
-  // ✅ Button 1: capture screenshot for current file (only if modified)
+  // ✅ Button 1: CAPTURE SINGLE FILE
   const handleCaptureCurrentConfig = async () => {
     if (!diffViewerRef.current) {
       alert('Diff viewer not ready.');
       return;
     }
-    await diffViewerRef.current.captureScreenshot();
+    
+    // Trigger Overlay
+    setCaptureProgress({ 
+        isVisible: true, 
+        currentFile: selectedFile?.file_name || 'Current View', 
+        progress: 30, 
+        total: 1, 
+        current: 1 
+    });
+
+    try {
+        await new Promise(r => setTimeout(r, 600)); // Delay for effect
+        await diffViewerRef.current.captureScreenshot({ silent: true });
+        
+        setCaptureProgress(prev => ({ ...prev, progress: 100 }));
+        setStatus({ type: 'success', message: 'Screenshot added to Excel successfully.' });
+        await new Promise(r => setTimeout(r, 800));
+
+    } catch (e) {
+        console.error(e);
+        setStatus({ type: 'error', message: 'Failed to capture screenshot.' });
+    } finally {
+        setCaptureProgress({ isVisible: false, currentFile: '', progress: 0, total: 0, current: 0 });
+    }
   };
 
-  // ✅ Button 2: capture for all modified config files (skip missing-only)
+  // ✅ Button 2: CAPTURE ALL MODIFIED
   const handleCaptureAllConfigs = async () => {
     if (!cleanedExcelPath) {
       setStatus({ type: 'error', message: 'Excel path not set' });
       return;
     }
     if (!folderResult || !folderResult.file_summaries) {
-      setStatus({
-        type: 'error',
-        message: 'No comparison data available.',
-      });
+      setStatus({ type: 'error', message: 'No comparison data available.' });
       return;
     }
 
     const allSummaries = folderResult.file_summaries;
-
     const configModifiedFiles = allSummaries.filter((fs) => {
       const path = (fs.new_path || fs.old_path || '').toLowerCase();
-      const isConfig =
-        path.includes('/configs/') || path.includes('\\configs\\');
-
-      const isMissingOnly =
-        fs.summary === 'Missing in NEW' || fs.summary === 'Missing in OLD';
-
+      const isConfig = path.includes('/configs/') || path.includes('\\configs\\');
+      const isMissingOnly = fs.summary === 'Missing in NEW' || fs.summary === 'Missing in OLD';
       const isRealDiff = fs.has_changes && !isMissingOnly;
-
       return isConfig && isRealDiff;
     });
 
     if (configModifiedFiles.length === 0) {
-      setStatus({
-        type: 'info',
-        message: 'No modified files found under Configs.',
-      });
+      setStatus({ type: 'info', message: 'No modified files found under Configs.' });
       return;
     }
 
     setCapturingAll(true);
+    let count = 0;
+    const total = configModifiedFiles.length;
+    
+    setCaptureProgress({ 
+        isVisible: true, 
+        currentFile: 'Initializing...', 
+        progress: 0, 
+        total, 
+        current: 0 
+    });
+
     try {
       for (const fs of configModifiedFiles) {
+        count++;
+        setCaptureProgress({ 
+            isVisible: true, 
+            currentFile: fs.file_name, 
+            progress: (count / total) * 100, 
+            total, 
+            current: count 
+        });
+
         const fileObj = {
           file_name: fs.file_name,
           old_path: fs.old_path,
@@ -400,135 +373,82 @@ export default function ComparisonAndReviewPage() {
         };
 
         readyResolveRef.current = null;
-        const readyPromise = new Promise((resolve) => {
-          readyResolveRef.current = resolve;
-        });
-
+        const readyPromise = new Promise((resolve) => { readyResolveRef.current = resolve; });
         setDiffReady(false);
         expectedSelectedFileRef.current = fileObj;
         selectedFilePromiseRef.current = null;
-        const selectedPromise = new Promise((resolve) => {
-          selectedFilePromiseRef.current = resolve;
-        });
+        const selectedPromise = new Promise((resolve) => { selectedFilePromiseRef.current = resolve; });
+        
         setSelectedFile(fileObj);
-        await selectedPromise; // wait for selectedFile to update
-
-        // Ensure file diff is loaded before proceeding
+        await selectedPromise; 
         await loadFileDiff(fileObj);
-
-        // Wait until DiffViewer is ready
         await readyPromise;
 
         if (diffViewerRef.current) {
           await diffViewerRef.current.captureScreenshot({ silent: true });
-          await new Promise((res) => setTimeout(res, 300));
+          await new Promise((res) => setTimeout(res, 500));
         }
-
       }
 
-      setStatus({
-        type: 'success',
-        message:
-          'Screenshots captured for all modified files under Configs.',
-      });
+      setCaptureProgress(prev => ({ ...prev, progress: 100 }));
+      setStatus({ type: 'success', message: 'Screenshots captured for all modified files under Configs.' });
+      await new Promise((res) => setTimeout(res, 1500));
+
     } catch (err) {
       console.error('Error capturing screenshots for all configs:', err);
-      setStatus({
-        type: 'error',
-        message: 'Error capturing screenshots for all config files.',
-      });
+      setStatus({ type: 'error', message: 'Error capturing screenshots for all config files.' });
     } finally {
       setCapturingAll(false);
+      setCaptureProgress({ isVisible: false, currentFile: '', progress: 0, total: 0, current: 0 });
     }
   };
 
-  // 🔹 Flatten global comments for "Saved comments (all files)" panel
+  // 🔹 Flatten global comments
   const flattenedComments = useMemo(() => {
     if (!folderResult) return [];
-
     const result = [];
-
     Object.entries(comments || {}).forEach(([fileKey, lineMap]) => {
-      const file = folderResult.file_summaries?.find(
-        (f) =>
-          (f.new_path || f.old_path || f.file_name) === fileKey
-      );
+      const file = folderResult.file_summaries?.find(f => (f.new_path || f.old_path || f.file_name) === fileKey);
       const fileName = file?.file_name || fileKey;
-      const componentName = file?.component_name || '';
-
       Object.entries(lineMap || {}).forEach(([lineNumber, value]) => {
-        let commentText, lineContent;
-        if (typeof value === 'string') {
-          commentText = value;
-          lineContent = '';
-        } else {
-          commentText = value?.comment || '';
-          lineContent = value?.lineContent || '';
-        }
-        if (!commentText || !commentText.trim()) return;
-
-        result.push({
-          fileKey,
-          fileName,
-          componentName,
-          lineNumber: Number(lineNumber),
-          comment: commentText,
-          lineContent,
-        });
+        let commentText = typeof value === 'string' ? value : value?.comment;
+        if (commentText) result.push({ fileKey, fileName, lineNumber: Number(lineNumber), comment: commentText });
       });
     });
-
-    result.sort(
-      (a, b) =>
-        a.fileName.localeCompare(b.fileName) ||
-        a.lineNumber - b.lineNumber
-    );
-
     return result;
   }, [comments, folderResult]);
 
   return (
-    <div className="h-full px-4 pb-4">
-      <div className="h-full bg-white rounded-xl shadow-md border border-slate-200 flex flex-col">
+    <>
+    {/* Overlay */}
+    <ProcessingOverlay 
+        isVisible={captureProgress.isVisible} 
+        currentFile={captureProgress.currentFile}
+        progress={captureProgress.progress}
+        total={captureProgress.total}
+        current={captureProgress.current}
+    />
+    
+    <div className="h-full w-full bg-slate-900/40 backdrop-blur-xl flex flex-col overflow-hidden">
+        
         {/* Header */}
-        <div className="px-6 py-3 border-b flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-800">
-              Comparison Results &amp; Review
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Select a file from the left to view differences and add
-              comments.
-            </p>
-          </div>
+        <div className="px-4 py-2 border-b border-white/10 flex items-center justify-between bg-black/20 shrink-0">
+          <div><h2 className="text-sm font-bold text-gray-200">Comparison: <span className="text-purple-300 font-normal">{folderResult?.total_components ? `Results Loaded` : 'No results'}</span></h2></div>
           {folderResult && (
-            <div className="text-xs text-slate-500 text-right">
-              <div>
-                Components with changes:{' '}
-                <span className="font-semibold text-slate-700">
-                  {folderResult.components_with_changes}
-                </span>
-              </div>
-              <div>
-                Total components:{' '}
-                <span className="font-semibold text-slate-700">
-                  {folderResult.total_components}
-                </span>
-              </div>
+            <div className="text-xs text-gray-400 flex gap-4">
+              <div>Components with changes: <span className="text-white font-mono">{folderResult.components_with_changes}</span></div>
+              <div>Total components: <span className="text-white font-mono">{folderResult.total_components}</span></div>
             </div>
           )}
         </div>
 
-        {/* Main two-column area */}
-        <div className="flex-1 flex gap-4 px-4 pt-3 overflow-hidden">
-          {/* LEFT: folder tree */}
-          <div className="flex flex-col w-[450px] min-w-[400px] max-w-[520px] bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-800">
-                File structure
-              </h3>
-            </div>
-            <div className="flex-1 min-h-0 overflow-auto p-2">
+        {/* Main Body */}
+        <div className="flex-1 flex overflow-hidden">
+          
+          {/* LEFT: Tree */}
+          <div className="w-[350px] min-w-[300px] flex flex-col border-r border-white/10 bg-black/20">
+            <div className="px-3 py-2 border-b border-white/5 bg-white/5 shrink-0"><h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Explorer</h3></div>
+            <div className="flex-1 overflow-y-auto p-2 scrollbar-thin">
               {folderResult && enrichedTree ? (
                 <FolderTree
                   title="Folder Results"
@@ -541,146 +461,75 @@ export default function ComparisonAndReviewPage() {
                   onToggleValidation={handleToggleValidation}
                 />
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center text-sm text-slate-500">
-                  <p>No comparison results available.</p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Run a folder comparison to see files here.
-                  </p>
-                </div>
+                <div className="mt-10 text-center text-sm text-gray-500"><p>Run a comparison to see files.</p></div>
               )}
             </div>
-          </div>
-
-          {/* RIGHT: diff + screenshot buttons + comments */}
-          <div className="flex flex-col flex-1 rounded-lg border border-slate-200 overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-800">
-                  {selectedFile
-                    ? `Diff: ${selectedFile.file_name}`
-                    : 'Diff viewer'}
-                </h3>
-                {selectedFile && (
-                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {selectedFile.old_path || selectedFile.new_path}
-                  </p>
-                )}
-              </div>
-
-              {/* Screenshot buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCaptureCurrentConfig}
-                  disabled={!selectedFile || fileStatus !== 'modified'}
-                  className="px-2 py-1 text-[11px] rounded bg-sky-600 text-white hover:bg-sky-700 disabled:bg-slate-300 disabled:text-slate-500"
-                >
-                  Capture current config
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCaptureAllConfigs}
-                  disabled={capturingAll}
-                  className="px-2 py-1 text-[11px] rounded bg-purple-600 text-white hover:bg-purple-700 disabled:bg-slate-300 disabled:text-slate-500"
-                >
-                  {capturingAll
-                    ? 'Capturing all configs...'
-                    : 'Capture all modified configs'}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 min-h-0 overflow-auto p-3">
-              {selectedFile ? (
-                <DiffViewer
-                  key={getFileKey(selectedFile)}
-                  ref={diffViewerRef}
-                  oldText={oldText}
-                  newText={newText}
-                  status={fileStatus}
-                  onNewChange={handleNewChange}
-                  comments={currentComments}
-                  onCommentChange={handleCommentChange}
-                  fileName={selectedFile.file_name}
-                  filePath={
-                    selectedFile.new_path || selectedFile.old_path || ''
-                  }
-                  excelPath={cleanedExcelPath}
-                  onReady={() => {
-                    setDiffReady(true);
-                    if (readyResolveRef.current) {
-                      readyResolveRef.current();
-                      readyResolveRef.current = null;
-                    }
-                  }}
-                />
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center text-sm text-slate-500">
-                  <p>Select a file from the tree to view differences.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Global Saved Comments (all files) */}
-        <div className="px-6 pb-4 pt-2 border-t border-slate-200 bg-slate-50">
-          <h3 className="text-sm font-semibold text-slate-800 mb-2">
-            Saved comments (all files)
-          </h3>
-          {flattenedComments.length === 0 ? (
-            <div className="text-xs text-slate-400">
-              No comments added yet. Click a line number in the diff to add
-              and they will appear here.
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-56 overflow-auto text-xs">
-              {flattenedComments.map((c, idx) => (
-                <div
-                  key={`${c.fileKey}-${c.lineNumber}-${idx}`}
-                  className="p-2 bg-white border rounded"
-                >
-                  <div className="flex justify-between text-[11px] text-slate-600 mb-1">
-                    <span className="font-semibold">
-                      {c.fileName}
-                      {c.componentName
-                        ? `  (${c.componentName})`
-                        : ''}
-                    </span>
-                    <span>Line {c.lineNumber}</span>
-                  </div>
-                  {c.lineContent && (
-                    <div className="mb-1 font-mono text-[11px] whitespace-pre-wrap bg-slate-50 border border-slate-200 rounded px-1 py-0.5">
-                      {c.lineContent}
+            
+            <div className="h-1/4 border-t border-white/10 flex flex-col bg-slate-900/50">
+               <div className="px-3 py-1.5 border-b border-white/5 bg-white/5 text-[10px] font-bold text-gray-400 uppercase">Global Comments</div>
+               <div className="flex-1 overflow-y-auto p-2">
+                 {flattenedComments.length === 0 ? (
+                    <div className="text-xs text-gray-600 italic text-center mt-2">No comments yet.</div>
+                 ) : (
+                    <div className="space-y-2">
+                      {flattenedComments.map((c, idx) => (
+                        <div key={`${c.fileKey}-${c.lineNumber}-${idx}`} className="p-2 bg-white/5 rounded border border-white/5 hover:bg-white/10 cursor-pointer">
+                            <div className="flex justify-between text-[10px] text-purple-300"><span className="truncate max-w-[150px]">{c.fileName}</span><span>Ln {c.lineNumber}</span></div>
+                            <div className="text-[11px] text-gray-300 truncate">{c.comment}</div>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                  <div className="text-[12px] text-slate-800">
-                    Comment: {c.comment}
-                  </div>
-                </div>
-              ))}
+                 )}
+               </div>
             </div>
-          )}
-        </div>
-
-        {/* Footer buttons */}
-        {selectedFile && (
-          <div className="px-6 py-3 border-t border-slate-200 flex justify-end gap-3 bg-slate-50">
-            <button
-              onClick={handleSaveEditedFile}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md shadow-sm"
-            >
-              Save Edited File
-            </button>
-            <button
-              onClick={handleWriteChangesToExcel}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-md shadow-sm"
-            >
-              Write Changes to Excel
-            </button>
           </div>
-        )}
-      </div>
+
+          {/* RIGHT: Viewer */}
+          <div className="flex-1 flex flex-col min-w-0 bg-slate-900/30">
+            <div className="h-12 border-b border-white/5 px-4 flex items-center justify-between bg-white/5 shrink-0">
+              <div className="flex items-center gap-2 overflow-hidden">
+                 <span className="text-gray-400 text-sm">File:</span>
+                 <span className="text-sm font-medium text-white truncate max-w-md">{selectedFile ? selectedFile.file_name : 'No file selected'}</span>
+                 {selectedFile && <span className="text-xs text-gray-500 font-mono hidden md:inline-block ml-2 opacity-60">{selectedFile.old_path || selectedFile.new_path}</span>}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={handleCaptureCurrentConfig} disabled={!selectedFile || fileStatus !== 'modified'} className="px-2 py-1 text-xs rounded bg-sky-600/20 text-sky-300 border border-sky-600/50 hover:bg-sky-600/40 disabled:opacity-30 transition-all">Capture View</button>
+                <button type="button" onClick={handleCaptureAllConfigs} disabled={capturingAll} className="px-2 py-1 text-xs rounded bg-purple-600/20 text-purple-300 border border-purple-600/50 hover:bg-purple-600/40 disabled:opacity-30 transition-all">{capturingAll ? 'Capturing...' : 'Capture All'}</button>
+                <div className="h-4 w-px bg-gray-700 mx-1"></div>
+                <button onClick={handleSaveEditedFile} disabled={!selectedFile} className="px-3 py-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed">Save File</button>
+                <button onClick={handleWriteChangesToExcel} className="px-3 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded transition-colors shadow-lg shadow-indigo-900/20">Write to Excel</button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-hidden relative p-0">
+              {selectedFile ? (
+                <div className="h-full flex flex-col"> 
+                   <DiffViewer
+                      key={getFileKey(selectedFile)}
+                      ref={diffViewerRef}
+                      oldText={oldText}
+                      newText={newText}
+                      status={fileStatus}
+                      onNewChange={handleNewChange}
+                      comments={currentComments}
+                      onCommentChange={handleCommentChange}
+                      fileName={selectedFile.file_name}
+                      filePath={selectedFile.new_path || selectedFile.old_path || ''}
+                      excelPath={cleanedExcelPath}
+                      onReady={() => { setDiffReady(true); if (readyResolveRef.current) { readyResolveRef.current(); readyResolveRef.current = null; } }}
+                    />
+                </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center text-gray-500">
+                  <div className="p-8 rounded-full bg-white/5 mb-4"><svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></div>
+                  <p className="text-lg font-medium text-gray-400">Select a file to compare</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
     </div>
+    </>
   );
 }

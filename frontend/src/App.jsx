@@ -1,4 +1,3 @@
-
 // frontend/src/App.jsx
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { ComparisonProvider, useComparison } from './context/ComparisonContext';
@@ -18,33 +17,42 @@ function AppContent() {
     selectWorkspace,
   } = useComparison();
 
-  // 🔹 Show modal only if there is NO saved workspace in localStorage
   const [showModal, setShowModal] = useState(() => {
     const savedWs = localStorage.getItem('current_workspace');
-    return !savedWs; // true only for first-ever use
+    return !savedWs; 
   });
 
-  // We no longer auto-close the modal when currentWorkspace changes.
-  // It will close when user selects/creates a workspace via WorkspaceModal
-  // (onClose is called there), and after that user can use the sidebar.
-
   return (
-    <div className="flex">
+    <div className="flex h-screen overflow-hidden text-gray-100 font-sans">
       <WorkspaceSidebar />
-      <div className="flex-1 flex flex-col min-h-screen">
-        <header className="bg-white border-b p-3">
-          <div className="max-w-7xl mx-auto flex items-center gap-4">
-            <Link to="/" className="font-bold">
-              Config Compare Tool
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#0f0718]">
+        
+        {/* Header */}
+        <header className="bg-slate-900/50 backdrop-blur-md border-b border-white/10 p-3 shrink-0 z-20">
+          <div className="w-full px-4 flex items-center justify-between">
+            <Link 
+              to="/" 
+              className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-400 hover:opacity-80 transition-opacity"
+            >
+              Release-Note Automation Tool
             </Link>
-            <nav className="text-sm text-gray-600">
-              <Link to="/" className="mr-3">
+            <nav className="text-xs font-medium uppercase tracking-wide">
+              <Link 
+                to="/" 
+                className="mr-6 text-gray-400 hover:text-purple-300 transition-colors"
+              >
                 Upload
               </Link>
-              <Link to="/results" className="mr-3">
+              <Link 
+                to="/results" 
+                className="mr-6 text-gray-400 hover:text-purple-300 transition-colors"
+              >
                 Results &amp; Review
               </Link>
-              <Link to="/report" className="mr-3">
+              <Link 
+                to="/report" 
+                className="text-gray-400 hover:text-purple-300 transition-colors"
+              >
                 Report
               </Link>
             </nav>
@@ -52,21 +60,36 @@ function AppContent() {
         </header>
 
         {/* Global status banner */}
-        <StatusBanner />
+        <div className="z-10 shrink-0">
+            <StatusBanner />
+        </div>
 
-        <main className="py-4 flex-1">
-          <Routes>
-            <Route path="/" element={<UploadPage />} />
-            <Route
-              path="/results"
-              element={<ComparisonAndReviewPage />}
-            />
-            <Route path="/report" element={<ReportPreviewPage />} />
-          </Routes>
+        {/* Main Content Area - Changed to take full width/height */}
+        <main className="flex-1 overflow-hidden relative">
+            <Routes>
+              {/* Upload page keeps a centered layout */}
+              <Route path="/" element={
+                <div className="h-full overflow-y-auto p-6">
+                   <UploadPage />
+                </div>
+              } />
+              
+              {/* Results page takes full space without padding constraints */}
+              <Route
+                path="/results"
+                element={<ComparisonAndReviewPage />}
+              />
+              
+              {/* Report page keeps centered layout */}
+              <Route path="/report" element={
+                 <div className="h-full overflow-y-auto p-6">
+                    <ReportPreviewPage />
+                 </div>
+              } />
+            </Routes>
         </main>
       </div>
 
-      {/* Workspace selection modal – only shown when showModal is true */}
       {showModal && (
         <WorkspaceModal
           onCreate={async (name) => {

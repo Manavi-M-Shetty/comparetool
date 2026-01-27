@@ -145,3 +145,27 @@ export const uploadDiffScreenshot = async (excelPath, fileName, imageBlob) => {
   const res = await axios.post(`${API_BASE_URL}/write-diff-image`, formData);
   return res.data;
 };
+
+export async function browseSystemFolder() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/browse`);
+    if (!res.ok) throw new Error('Failed to open dialog');
+    const data = await res.json();
+    return data.path || '';
+  } catch (err) {
+    console.error(err);
+    return '';
+  }
+}
+
+export async function browseSystemFile() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/browse-file`);
+    if (!res.ok) throw new Error('Failed to open file dialog');
+    const data = await res.json();
+    return data.path || '';
+  } catch (err) {
+    console.error(err);
+    return '';
+  }
+}

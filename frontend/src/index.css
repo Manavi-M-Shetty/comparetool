@@ -1,3 +1,45 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Global Theme Overrides */
+:root {
+  --bg-dark: #0f0718;
+  --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+body {
+  /* Deep purple/black gradient background */
+  background: radial-gradient(circle at top left, #2e1065, #0f0718 40%);
+  background-color: #0f0718;
+  color: #e2e8f0; /* Light gray text for readability */
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4c1d95;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6d28d9;
+}
+
+/* Utility for glassmorphism cards */
+.glass-panel {
+  background: rgba(30, 27, 75, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}

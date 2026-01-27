@@ -11,6 +11,8 @@ import difflib
 import tempfile
 from io import BytesIO
 from PIL import Image as PILImage, UnidentifiedImageError
+import tkinter as tk
+from tkinter import filedialog
 PILImage.MAX_IMAGE_PIXELS = None
 # Add backend directory to path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -776,3 +778,53 @@ async def write_diff_image_endpoint(
         raise HTTPException(status_code=400, detail=message)
 
     return {"success": True, "message": message}
+
+
+
+# 2️⃣ PASTE THIS FUNCTION ANYWHERE BEFORE THE END OF THE FILE
+@app.get("/browse")
+def browse_folder_dialog():
+    try:
+        # Create a hidden Tkinter root window
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+        root.attributes('-topmost', True)  # Make dialog appear on top
+        
+        # Open the dialog
+        path = filedialog.askdirectory(title="Select Folder")
+        
+        root.destroy()  # Clean up
+        
+        if path:
+            # User selected a folder
+            return {"success": True, "path": path.replace("/", "\\")}
+        else:
+            # User cancelled
+            return {"success": False, "message": "User cancelled folder selection"}
+    except Exception as e:
+        print(f"Error opening dialog: {e}")
+        return {"success": False, "message": "Error opening folder selection dialog"}
+
+
+@app.get("/browse-file")
+def browse_file_dialog():
+    """
+    Opens a native system dialog to select a single file (specifically Excel).
+    """
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        
+        # Open file dialog filtering for Excel
+        path = filedialog.askopenfilename(
+            title="Select Excel File",
+            filetypes=[("Excel files", "*.xlsx;*.xls")]
+        )
+        
+        root.destroy()
+        
+        return {"path": path.replace("/", "\\") if path else ""} 
+    except Exception as e:
+        print(f"Error opening file dialog: {e}")
+        return {"path": ""}

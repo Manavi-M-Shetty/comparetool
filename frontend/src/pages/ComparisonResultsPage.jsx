@@ -1,3 +1,4 @@
+// frontend/src/pages/ComparisonResultsPage.jsx
 import React from 'react'
 import FolderTree from '../components/FolderTree'
 import { useComparison } from '../context/ComparisonContext'
