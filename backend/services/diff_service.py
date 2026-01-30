@@ -153,43 +153,45 @@ def compare_files(old_path: str, new_path: str) -> Optional[FileDiff]:
 def compare_files_metadata(old_path: str, new_path: str, max_semantic_bytes: int = 200 * 1024) -> Optional[dict]:
     """
     Lightweight, memory-safe comparison of two files that avoids building full diffs.
-    - Streams files in binary chunks to detect any change without loading entire files into memory.
-    - Uses size quick checks first and then a chunked comparison if sizes match.
-    - Attempts limited semantic parsing only for small files (<= max_semantic_bytes).
+    Uses the same text-mode comparison logic as compare_files() to ensure consistency.
+    - Reads files in text mode (normalizes line endings like single-file compare does)
+    - Uses unified diff to detect changes (same as /compare endpoint)
+    - Attempts limited semantic parsing only for small files (<= max_semantic_bytes)
 
     Returns a dict with keys: has_changes (bool), summary (str), semantic_summary (dict)
     """
     try:
-        # Quick size check
+        # Get file sizes for early validation
         s_old = os.path.getsize(old_path)
         s_new = os.path.getsize(new_path)
     except FileNotFoundError:
         return None
 
-    # If sizes differ -> changed
-    if s_old != s_new:
-        has_changes = True
-        summary = "Size differs"
-    else:
-        # Sizes equal -> do a streaming binary compare in chunks (memory-safe)
-        has_changes = False
-        BUF = 8192
-        try:
-            with open(old_path, 'rb') as fo, open(new_path, 'rb') as fn:
-                while True:
-                    bo = fo.read(BUF)
-                    bn = fn.read(BUF)
-                    if not bo and not bn:
-                        break
-                    if bo != bn:
-                        has_changes = True
-                        break
-        except FileNotFoundError:
-            return None
-        except Exception:
-            return None
-
-        summary = "No changes detected" if not has_changes else "Content differs"
+    # Read files in text mode (same as single-file compare)
+    # This normalizes line endings, ensuring CRLF and LF are treated as identical
+    old_lines = safe_read_file(old_path)
+    new_lines = safe_read_file(new_path)
+    
+    if old_lines is None or new_lines is None:
+        return None
+    
+    # Use unified_diff to detect changes (same logic as compare_files())
+    unified_diff = list(difflib.unified_diff(
+        old_lines,
+        new_lines,
+        fromfile=os.path.basename(old_path),
+        tofile=os.path.basename(new_path),
+        lineterm=""
+    ))
+    
+    # Check if there are actual changes (not just headers)
+    # Same logic as single-file compare endpoint
+    has_changes = any(
+        line.startswith(("+", "-")) and not line.startswith(("+++", "---"))
+        for line in unified_diff
+    )
+    
+    summary = "No changes detected" if not has_changes else "Content differs"
 
     # Semantic parse only for small files to avoid memory issues
     semantic_summary = {}

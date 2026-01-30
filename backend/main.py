@@ -726,9 +726,14 @@ async def delete_workspace_endpoint(name: str):
 async def write_diff_image_endpoint(
     excel_path: str = Form(...),
     file_name: str = Form(...),
+    component_name: str = Form("", alias="componentName"),
     image: UploadFile = File(...)
 ):
-    """Receive a screenshot and add it to Excel (Diff Screenshots sheet)."""
+    """Receive a screenshot and add it to Excel (Diff Screenshots sheet).
+    
+    Uses the same component name logic as the Reviewed Changes sheet.
+    Accepts componentName from frontend (camelCase, matching Reviewed Changes format).
+    """
     import uuid
 
     TEMP_IMG_DIR = os.path.join(os.getcwd(), "temp_images")
@@ -765,6 +770,7 @@ async def write_diff_image_endpoint(
         success, message, _ = add_diff_image_to_excel(
             excel_path=excel_path,
             file_name=file_name,
+            component_name=component_name,
             image_file_path=img_path,
         )
     finally:

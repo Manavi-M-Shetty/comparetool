@@ -47,6 +47,7 @@ def add_diff_image_to_excel(
     excel_path: str,
     file_name: str,
     image_file_path: str,
+    component_name: str = "",
     sheet_name: str = "Diff Screenshots"
 ) -> Tuple[bool, str, int]:
   """
@@ -56,6 +57,7 @@ def add_diff_image_to_excel(
   - Images are scaled only by WIDTH (max width), so height stays
     proportional to the original image.
   - Taller screenshots will occupy a taller row; smaller ones a shorter row.
+  - Component name is recorded from the same logic as Reviewed Changes sheet.
   """
   # Check if Excel is open
   if check_excel_open(excel_path):
@@ -75,8 +77,8 @@ def add_diff_image_to_excel(
       sheet = workbook[sheet_name]
     else:
       sheet = workbook.create_sheet(sheet_name)
-      # Header row
-      sheet.append(["File Name", "Timestamp", "Screenshot"])
+      # Header row - matches component name structure from Reviewed Changes
+      sheet.append(["Component Name", "File Name", "Timestamp", "Screenshot"])
 
     # --- Decide where to put the next screenshot ---
     # If only header present (row 1), start at row 3
@@ -87,11 +89,12 @@ def add_diff_image_to_excel(
       GAP_ROWS = 3
       meta_row = sheet.max_row + GAP_ROWS
 
-    # Meta info (file name + timestamp)
-    sheet.cell(row=meta_row, column=1, value=file_name)
+    # Meta info (component name + file name + timestamp)
+    sheet.cell(row=meta_row, column=1, value=component_name)
+    sheet.cell(row=meta_row, column=2, value=file_name)
     sheet.cell(
       row=meta_row,
-      column=2,
+      column=3,
       value=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
 
@@ -118,15 +121,15 @@ def add_diff_image_to_excel(
     img.width = new_width
     img.height = new_height
 
-    # Anchor image at column C in the chosen row
-    img.anchor = f"C{image_row}"
+    # Anchor image at column D in the chosen row (shifted right by 1 for component name)
+    img.anchor = f"D{image_row}"
     sheet.add_image(img)
 
     # --- Layout tuning ---
 
-    # Make column C roughly match the image width (Excel units ≈ px / 7.5)
+    # Make column D roughly match the image width (Excel units ≈ px / 7.5)
     desired_width = new_width / 7.5
-    col_dim = sheet.column_dimensions["C"]
+    col_dim = sheet.column_dimensions["D"]
     current_width = col_dim.width or 0
     if desired_width > current_width:
       col_dim.width = desired_width

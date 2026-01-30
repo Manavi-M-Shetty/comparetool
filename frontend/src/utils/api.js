@@ -135,10 +135,11 @@ export const deleteWorkspace = async (name) => {
 };
 
 
-export const uploadDiffScreenshot = async (excelPath, fileName, imageBlob) => {
+export const uploadDiffScreenshot = async (excelPath, fileName, imageBlob, componentName = '') => {
   const formData = new FormData();
   formData.append('excel_path', excelPath);
   formData.append('file_name', fileName);
+  formData.append('componentName', componentName);
   formData.append('image', imageBlob, `${fileName || 'diff'}.png`);
 
   // Do NOT set Content-Type manually – axios will set correct multipart boundaries
