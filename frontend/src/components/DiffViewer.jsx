@@ -275,6 +275,20 @@ const DiffViewer = forwardRef(function DiffViewer(
         tempContainer.appendChild(tempTable);
         document.body.appendChild(tempContainer);
 
+        // ... after appending tempContainer ...
+
+        // Wait for fonts and layout to settle before capturing
+        try {
+          if (document.fonts && document.fonts.ready) {
+            await document.fonts.ready;
+          }
+        } catch (e) {
+          // ignore
+        }
+        await new Promise(res =>
+          requestAnimationFrame(() => requestAnimationFrame(res))
+        );
+
         const canvas = await html2canvas(tempContainer, {
           backgroundColor: '#0c0a14',
           scale: 1.2,
@@ -297,8 +311,21 @@ const DiffViewer = forwardRef(function DiffViewer(
         const resp = await uploadDiffScreenshot(excelPath, fileName || 'diff', blob, componentName);
         if (!options.silent) alert(resp.message || 'Screenshot added to Excel.');
       } catch (err) {
-        console.error('Error capturing diff screenshot:', err);
-        if (!options.silent) alert('Failed to capture screenshot.');
+        console.warn('Error capturing diff screenshot:', err);
+
+        // FastAPI HTTPException returns { detail: "..." }
+        const backendMessage =
+          err?.response?.data?.detail ||   // <-- main case
+          err?.response?.data?.message ||
+          err?.message ||
+          'Failed to capture screenshot.';
+
+        if (!options.silent) {
+          alert(backendMessage);
+        }
+
+        // IMPORTANT: propagate to caller (Capture View / Capture All)
+        throw new Error(backendMessage);
       }
     },
   }));
@@ -354,21 +381,27 @@ const DiffViewer = forwardRef(function DiffViewer(
       {/* Tab Navigation */}
       <div className="flex items-center gap-1 px-4 py-2 bg-black/30 border-b border-purple-500/10">
         {[
-          { id: 'diff', label: 'Diff View', icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          )},
-          { id: 'edit', label: 'Edit', icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          )},
-          { id: 'comments', label: 'Comments', icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-            </svg>
-          ), badge: savedComments.length },
+          {
+            id: 'diff', label: 'Diff View', icon: (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+            )
+          },
+          {
+            id: 'edit', label: 'Edit', icon: (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            )
+          },
+          {
+            id: 'comments', label: 'Comments', icon: (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+              </svg>
+            ), badge: savedComments.length
+          },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -428,7 +461,7 @@ const DiffViewer = forwardRef(function DiffViewer(
             >
               {/* Glow effect */}
               <div className="absolute -inset-1 bg-gradient-to-r from-purple-600/30 to-pink-600/30 rounded-2xl blur-lg" />
-              
+
               <div className="relative bg-slate-900/95 backdrop-blur-xl border border-purple-500/30 rounded-xl shadow-2xl overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-b border-purple-500/20">
@@ -470,7 +503,7 @@ const DiffViewer = forwardRef(function DiffViewer(
                     onChange={(e) => setTempComment(e.target.value)}
                     autoFocus
                   />
-                  
+
                   <div className="flex items-center justify-between mt-3">
                     <p className="text-[10px] text-gray-600">
                       Press <kbd className="px-1 py-0.5 bg-gray-800 rounded text-gray-400 font-mono">Ctrl+Enter</kbd> to save
@@ -535,7 +568,7 @@ const DiffViewer = forwardRef(function DiffViewer(
                 >
                   {/* Left accent */}
                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-purple-500 to-pink-500" />
-                  
+
                   <div className="pl-5 pr-4 py-4">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-3">

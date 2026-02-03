@@ -14,8 +14,8 @@ import { getComponentName } from '../utils/fileUtils';
 // Status Badge Component
 function StatusBadge({ status }) {
   const config = {
-    modified: { 
-      label: 'Modified', 
+    modified: {
+      label: 'Modified',
       className: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
       icon: (
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -23,8 +23,8 @@ function StatusBadge({ status }) {
         </svg>
       )
     },
-    identical: { 
-      label: 'Identical', 
+    identical: {
+      label: 'Identical',
       className: 'bg-green-500/20 text-green-300 border-green-500/30',
       icon: (
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -32,8 +32,8 @@ function StatusBadge({ status }) {
         </svg>
       )
     },
-    added: { 
-      label: 'New File', 
+    added: {
+      label: 'New File',
       className: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
       icon: (
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -41,8 +41,8 @@ function StatusBadge({ status }) {
         </svg>
       )
     },
-    missing_new: { 
-      label: 'Deleted', 
+    missing_new: {
+      label: 'Deleted',
       className: 'bg-red-500/20 text-red-300 border-red-500/30',
       icon: (
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -52,8 +52,8 @@ function StatusBadge({ status }) {
     },
   };
 
-  const { label, className, icon } = config[status] || { 
-    label: status || 'Unknown', 
+  const { label, className, icon } = config[status] || {
+    label: status || 'Unknown',
     className: 'bg-gray-500/20 text-gray-300 border-gray-500/30',
     icon: null
   };
@@ -391,8 +391,12 @@ export default function ComparisonAndReviewPage() {
       await new Promise(r => setTimeout(r, 800));
     } catch (e) {
       console.error(e);
-      setStatus({ type: 'error', message: 'Failed to capture screenshot.' });
-    } finally {
+      const msg = e?.message || 'Failed to capture screenshot.';
+      setStatus({ type: 'error', message: msg });
+      // optional: also pop an alert
+      // alert(msg);
+    }
+    finally {
       setCaptureProgress({ isVisible: false, currentFile: '', progress: 0, total: 0, current: 0 });
     }
   };
@@ -433,7 +437,7 @@ export default function ComparisonAndReviewPage() {
       current: 0
     });
 
-    try {
+        try {
       for (const fs of configModifiedFiles) {
         count++;
         setCaptureProgress({
@@ -453,6 +457,7 @@ export default function ComparisonAndReviewPage() {
           has_changes: fs.has_changes,
         };
 
+        // existing selection / diff loading logic
         readyResolveRef.current = null;
         const readyPromise = new Promise((resolve) => { readyResolveRef.current = resolve; });
         setDiffReady(false);
@@ -466,8 +471,14 @@ export default function ComparisonAndReviewPage() {
         await readyPromise;
 
         if (diffViewerRef.current) {
-          await diffViewerRef.current.captureScreenshot({ silent: true });
-          await new Promise((res) => setTimeout(res, 500));
+          try {
+            await diffViewerRef.current.captureScreenshot({ silent: true });
+            await new Promise((res) => setTimeout(res, 500));
+          } catch (err) {
+            console.error('Error capturing screenshot for', fs.file_name, err);
+            // Stop the loop and let outer catch handle the message
+            throw err;
+          }
         }
       }
 
@@ -476,7 +487,8 @@ export default function ComparisonAndReviewPage() {
       await new Promise((res) => setTimeout(res, 1500));
     } catch (err) {
       console.error('Error capturing screenshots for all configs:', err);
-      setStatus({ type: 'error', message: 'Error capturing screenshots for all config files.' });
+      const msg = err?.message || 'Error capturing screenshots for all config files.';
+      setStatus({ type: 'error', message: msg });
     } finally {
       setCapturingAll(false);
       setCaptureProgress({ isVisible: false, currentFile: '', progress: 0, total: 0, current: 0 });

@@ -127,15 +127,15 @@ export default function StatusBanner() {
     >
       {/* Background gradient */}
       <div className={`absolute inset-0 bg-gradient-to-r ${config.bg} backdrop-blur-xl`} />
-      
+
       {/* Top accent line */}
       <div className={`absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-current to-transparent ${config.iconColor} opacity-50`} />
-      
+
       {/* Bottom border */}
       <div className={`absolute bottom-0 left-0 right-0 h-px ${config.border.replace('border-', 'bg-')}`} />
 
       {/* Animated glow effect */}
-      <div 
+      <div
         className={`absolute inset-0 opacity-30 ${config.glowColor}`}
         style={{
           background: `radial-gradient(circle at 20% 50%, currentColor 0%, transparent 50%)`,
@@ -214,7 +214,7 @@ export default function StatusBanner() {
         {/* Progress bar for auto-dismiss */}
         {(type === 'success' || type === 'info') && (
           <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/10">
-            <div 
+            <div
               className={`h-full ${config.accentColor} opacity-50`}
               style={{
                 animation: 'shrink 5s linear forwards',
@@ -225,7 +225,7 @@ export default function StatusBanner() {
       </div>
 
       {/* Keyframe animation */}
-      <style jsx>{`
+      <style>{`
         @keyframes shrink {
           from { width: 100%; }
           to { width: 0%; }

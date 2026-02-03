@@ -27,7 +27,7 @@ from models.schemas import (
 )
 from services.folder_compare import match_file_pairs
 from services.diff_service import compare_files, generate_diff_summary
-from services.excel_service import update_excel_file, write_changes_to_excel,add_diff_image_to_excel
+from services.excel_service import update_excel_file, write_changes_to_excel,add_diff_image_to_excel,sheet_name_from_component
 from services.workspace_service import create_workspace, list_workspaces, get_workspace, update_workspace, add_comparison_to_history,delete_workspace
 from utils.file_utils import path_exists, safe_isdir, safe_read_file, normalize_path
 
@@ -772,6 +772,7 @@ async def write_diff_image_endpoint(
             file_name=file_name,
             component_name=component_name,
             image_file_path=img_path,
+            sheet_name=sheet_name_from_component(component_name),
         )
     finally:
         # Cleanup temp file

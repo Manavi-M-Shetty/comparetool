@@ -182,7 +182,7 @@ export default function UploadPage() {
             Configuration Setup
           </h1>
           <p className="text-gray-400 max-w-lg mx-auto">
-            Select your source folders and optional Excel file to begin the comparison analysis
+            Select your source folders and Excel file to begin the comparison analysis
           </p>
         </div>
 
@@ -244,11 +244,8 @@ export default function UploadPage() {
                       <label className="text-sm font-semibold text-purple-200 block">
                         Excel Report Path
                       </label>
-                      <span className="text-xs text-gray-500">Optional - Export comparison results to Excel</span>
+                      <span className="text-xs text-gray-500">Export comparison results to Excel</span>
                     </div>
-                    <span className="px-2 py-0.5 text-xs font-medium bg-purple-500/20 text-purple-300 rounded-full border border-purple-500/30">
-                      Optional
-                    </span>
                   </div>
                   
                   <div className="relative">

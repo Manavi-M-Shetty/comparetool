@@ -20,6 +20,28 @@ from openpyxl.utils import get_column_letter
 from models.schemas import FileDiff
 from utils.file_utils import path_exists
 
+def sheet_name_from_component(component_name: str,
+                              default: str = "Diff Screenshots") -> str:
+    """
+    Build a valid Excel sheet name from a component name.
+    - Removes invalid characters: [] : * ? / \
+    - Trims to 31 chars (Excel limit)
+    - Falls back to default if empty/invalid
+    """
+    name = (component_name or "").strip()
+    if not name:
+        return default
+
+    invalid = set('[]:*?/\\')
+    cleaned = ''.join(c for c in name if c not in invalid).strip()
+    if not cleaned:
+        return default
+
+    # Excel sheet name max length = 31
+    if len(cleaned) > 31:
+        cleaned = cleaned[:31]
+
+    return cleaned
 
 def check_excel_open(excel_path: str) -> bool:
   """
@@ -48,109 +70,125 @@ def add_diff_image_to_excel(
     file_name: str,
     image_file_path: str,
     component_name: str = "",
-    sheet_name: str = "Diff Screenshots"
+    sheet_name: str = None,
 ) -> Tuple[bool, str, int]:
-  """
-  Add a screenshot image to the given Excel file in a separate sheet.
+    """
+    Add a screenshot image to the given Excel file in a separate sheet.
 
-  - Each image is placed in its own block of rows so they don't overlap.
-  - Images are scaled only by WIDTH (max width), so height stays
-    proportional to the original image.
-  - Taller screenshots will occupy a taller row; smaller ones a shorter row.
-  - Component name is recorded from the same logic as Reviewed Changes sheet.
-  """
-  # Check if Excel is open
-  if check_excel_open(excel_path):
-    return False, "Please close Excel file first", 0
+    - One sheet per component (based on component_name)
+    - Each image is placed in its own block of rows so they don't overlap,
+      even across multiple "Capture All" runs.
+    """
+    # Check if Excel is open
+    if check_excel_open(excel_path):
+        return False, "Please close Excel file first", 0
 
-  try:
-    # Load existing workbook or create new one
-    if path_exists(excel_path):
-      workbook = load_workbook(excel_path)
-    else:
-      workbook = Workbook()
-      if "Sheet" in workbook.sheetnames:
-        workbook.remove(workbook["Sheet"])
-
-    # Get or create the target sheet
-    if sheet_name in workbook.sheetnames:
-      sheet = workbook[sheet_name]
-    else:
-      sheet = workbook.create_sheet(sheet_name)
-      # Header row - matches component name structure from Reviewed Changes
-      sheet.append(["Component Name", "File Name", "Timestamp", "Screenshot"])
-
-    # --- Decide where to put the next screenshot ---
-    # If only header present (row 1), start at row 3
-    if sheet.max_row <= 1:
-      meta_row = 3
-    else:
-      # Small fixed gap after the last used row so images don't touch
-      GAP_ROWS = 3
-      meta_row = sheet.max_row + GAP_ROWS
-
-    # Meta info (component name + file name + timestamp)
-    sheet.cell(row=meta_row, column=1, value=component_name)
-    sheet.cell(row=meta_row, column=2, value=file_name)
-    sheet.cell(
-      row=meta_row,
-      column=3,
-      value=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    )
-
-    # Row where image will be anchored (1 row below metadata)
-    image_row = meta_row + 1
-
-    # --- Load and scale image (WIDTH only) ---
-    img = XLImage(image_file_path)
-
-    # Original size from html2canvas (pixels)
-    orig_width = img.width or 1
-    orig_height = img.height or 1
-
-    # Allow the image to be fairly wide, but don't go beyond MAX_WIDTH_PX
-    MAX_WIDTH_PX = 1800
-    if orig_width > MAX_WIDTH_PX:
-      scale = MAX_WIDTH_PX / float(orig_width)
-    else:
-      scale = 1.0  # keep original scale if already narrow enough
-
-    new_width = int(orig_width * scale)
-    new_height = int(orig_height * scale)
-
-    img.width = new_width
-    img.height = new_height
-
-    # Anchor image at column D in the chosen row (shifted right by 1 for component name)
-    img.anchor = f"D{image_row}"
-    sheet.add_image(img)
-
-    # --- Layout tuning ---
-
-    # Make column D roughly match the image width (Excel units ≈ px / 7.5)
-    desired_width = new_width / 7.5
-    col_dim = sheet.column_dimensions["D"]
-    current_width = col_dim.width or 0
-    if desired_width > current_width:
-      col_dim.width = desired_width
-
-    # Set the height of the image row so the image fits within that row.
-    # Approx conversion: 1 px ≈ 0.75 points in Excel.
     try:
-      sheet.row_dimensions[image_row].height = new_height * 0.75
-    except Exception:
-      pass
+        # Load existing workbook or create new one
+        if path_exists(excel_path):
+            workbook = load_workbook(excel_path)
+        else:
+            workbook = Workbook()
+            if "Sheet" in workbook.sheetnames:
+                workbook.remove(workbook["Sheet"])
 
-    # No need for bottom_row / used_rows_for_image hacks:
-    # the tall row itself gives enough vertical space.
-    workbook.save(excel_path)
-    return True, "Diff image added clearly", 1
+        # Decide which sheet to use: one sheet per component
+        if sheet_name is None:
+            sheet_name = sheet_name_from_component(component_name)
 
-  except PermissionError:
-    return False, "Please close Excel file first", 0
-  except Exception as exc:
-    return False, f"Error writing screenshot to Excel: {exc}", 0
+        # Get or create the target sheet
+        if sheet_name in workbook.sheetnames:
+            sheet = workbook[sheet_name]
+        else:
+            sheet = workbook.create_sheet(sheet_name)
+            # Header row - matches component name structure from Reviewed Changes
+            sheet.append(["Component Name", "File Name", "Timestamp", "Screenshot"])
 
+        # --- Decide where to put the next screenshot ---
+
+        # 1) Last row that has data (header + meta rows)
+        last_data_row = sheet.max_row or 1
+
+        # 2) Last row that has a custom height (we set this on image rows)
+        #    Only consider rows where height was explicitly set
+        existing_height_rows = [
+            r for r, dim in sheet.row_dimensions.items()
+            if dim.height is not None
+        ]
+        last_height_row = max(existing_height_rows) if existing_height_rows else 1
+
+        # Use whichever is lower in the sheet (data or image rows)
+        last_used_row = max(last_data_row, last_height_row)
+
+        GAP_ROWS = 3
+        if last_used_row <= 1:
+            # Only header present – start at row 3
+            meta_row = 3
+        else:
+            # Leave a fixed gap under the last used row (meta or image)
+            meta_row = last_used_row + GAP_ROWS
+
+        # Meta info (component name + file name + timestamp)
+        sheet.cell(row=meta_row, column=1, value=component_name)
+        sheet.cell(row=meta_row, column=2, value=file_name)
+        sheet.cell(
+            row=meta_row,
+            column=3,
+            value=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        )
+
+        # Row where image will be anchored (1 row below metadata)
+        image_row = meta_row + 1
+
+        # --- Load and scale image (WIDTH only) ---
+        img = XLImage(image_file_path)
+
+        orig_width = img.width or 1
+        orig_height = img.height or 1
+
+        MAX_WIDTH_PX = 1800
+        if orig_width > MAX_WIDTH_PX:
+            scale = MAX_WIDTH_PX / float(orig_width)
+        else:
+            scale = 1.0
+
+        new_width = int(orig_width * scale)
+        new_height = int(orig_height * scale)
+
+        img.width = new_width
+        img.height = new_height
+
+        # Anchor image at column D in the chosen row
+        img.anchor = f"D{image_row}"
+        sheet.add_image(img)
+
+        # --- Layout tuning ---
+
+        # Make column D roughly match the image width (Excel units ≈ px / 7.5)
+        desired_width = new_width / 7.5
+        col_dim = sheet.column_dimensions["D"]
+        current_width = col_dim.width or 0
+        if desired_width > current_width:
+            col_dim.width = desired_width
+
+        # Set the height of the image row so the image fits within that row.
+        try:
+            sheet.row_dimensions[image_row].height = new_height * 0.75
+        except Exception:
+            pass
+
+        # IMPORTANT: ensure this image row "counts" for max_row next time.
+        # We put a harmless empty string in D{image_row} if it's empty.
+        if sheet.cell(row=image_row, column=4).value is None:
+            sheet.cell(row=image_row, column=4, value="")
+
+        workbook.save(excel_path)
+        return True, "Diff image added clearly", 1
+
+    except PermissionError:
+        return False, "Please close Excel file first", 0
+    except Exception as exc:
+        return False, f"Error writing screenshot to Excel: {exc}", 0
 def update_excel_file(
     excel_path: str,
     file_diffs: List[FileDiff],
