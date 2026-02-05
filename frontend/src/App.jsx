@@ -9,36 +9,33 @@ import WorkspaceSidebar from './components/WorkspaceSidebar';
 import StatusBanner from './components/StatusBanner';
 import { useState, useEffect } from 'react';
 
-// Navigation Link Component
+// NEW: Delta Explorer page
+import DeltaExplorerPage from './pages/DeltaExplorerPage';
+
+// Simple, flat navigation link (uniform purple theme)
 function NavLink({ to, children, icon }) {
   const location = useLocation();
   const isActive = location.pathname === to;
-  
+
   return (
     <Link
       to={to}
-      className={`
-        relative flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
-        transition-all duration-300 group
-        ${isActive 
-          ? 'bg-gradient-to-r from-purple-600/30 to-pink-600/30 text-white border border-purple-500/30' 
-          : 'text-gray-400 hover:text-white hover:bg-white/5'
-        }
-      `}
+      className={`group flex items-center gap-2 px-3 py-1.5 rounded-md
+        text-xs md:text-sm font-medium border transition-colors
+        ${
+          isActive
+            ? 'bg-purple-600 border-purple-600 text-white'
+            : 'bg-white border-purple-200 text-purple-700 hover:bg-purple-50'
+        }`}
     >
-      {isActive && (
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-xl blur-lg -z-10" />
-      )}
-      
-      <span className={`transition-colors ${isActive ? 'text-purple-400' : 'text-gray-500 group-hover:text-purple-400'}`}>
+      <span
+        className={`flex-shrink-0 ${
+          isActive ? 'text-white' : 'text-purple-500 group-hover:text-purple-700'
+        }`}
+      >
         {icon}
       </span>
-      
-      <span className="hidden md:inline">{children}</span>
-      
-      {isActive && (
-        <span className="md:hidden absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-purple-400 rounded-full" />
-      )}
+      <span className="hidden md:inline whitespace-nowrap">{children}</span>
     </Link>
   );
 }
@@ -57,7 +54,6 @@ function AppContent() {
     return !savedWs;
   });
 
-  // Trigger WorkspaceModal on very first app load (exactly once).
   useEffect(() => {
     try {
       const alreadyShown = localStorage.getItem(MODAL_FIRST_SHOWN_KEY);
@@ -70,142 +66,198 @@ function AppContent() {
     }
   }, []);
 
-  // ✅ Helper function to get workspace display name
   const getWorkspaceName = () => {
     if (!currentWorkspace) return null;
-    // Handle both string and object formats
     if (typeof currentWorkspace === 'string') return currentWorkspace;
-    if (typeof currentWorkspace === 'object' && currentWorkspace.name) return currentWorkspace.name;
+    if (typeof currentWorkspace === 'object' && currentWorkspace.name) {
+      return currentWorkspace.name;
+    }
     return null;
   };
 
   const workspaceName = getWorkspaceName();
 
   return (
-    <div className="flex h-screen overflow-hidden text-gray-100 font-sans">
+    <div className="flex h-screen overflow-hidden bg-purple-50 text-slate-900 font-sans">
+      {/* Left workspace navigation */}
       <WorkspaceSidebar />
-      
-      <div className="flex-1 flex flex-col h-screen overflow-hidden relative bg-[#0a0612]">
-        {/* Ambient background effects */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-900/20 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2" />
-          <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-pink-900/20 rounded-full blur-[120px] translate-y-1/2 -translate-x-1/2" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-purple-900/10 rounded-full blur-[150px]" />
-        </div>
 
+      {/* Main column */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-purple-50">
         {/* Header */}
-        <header className="relative z-20 shrink-0">
-          <div className="h-[2px] bg-gradient-to-r from-transparent via-purple-500 to-transparent" />
-          
-          <div className="bg-slate-900/60 backdrop-blur-xl border-b border-white/5">
-            <div className="w-full px-4 py-3">
-              <div className="flex items-center justify-between">
-                {/* Logo Section */}
-                <Link to="/" className="flex items-center gap-3 group">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
-                    <div className="relative p-2 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl">
-                      <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                  </div>
-                  
-                  <div className="hidden sm:block">
-                    <h1 className="text-lg font-bold bg-gradient-to-r from-purple-300 via-pink-300 to-purple-300 bg-clip-text text-transparent">
-                      Release Notes
-                    </h1>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-widest -mt-0.5">
-                      Automation Tool
-                    </p>
-                  </div>
-                </Link>
+        <header className="shrink-0 border-b bg-white">
+          <div className="px-4 py-2 flex items-center justify-between gap-4">
+            {/* Left side: logo + nav */}
+            <div className="flex items-center gap-6 min-w-0 flex-1">
+              {/* Logo */}
+              <Link to="/" className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center justify-center w-8 h-8 rounded-md bg-purple-600 text-white">
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                </div>
 
-                {/* Navigation */}
-                <nav className="flex items-center gap-1 md:gap-2">
-                  <NavLink 
-                    to="/" 
-                    icon={
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                    }
-                  >
-                    Upload
-                  </NavLink>
-                  
-                  <NavLink 
-                    to="/results" 
-                    icon={
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                    }
-                  >
-                    Results
-                  </NavLink>
-                  
-                  <NavLink 
-                    to="/report" 
-                    icon={
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    }
-                  >
-                    Report
-                  </NavLink>
-                </nav>
+                <div className="hidden sm:block leading-tight">
+                  <h1 className="text-sm font-semibold text-slate-900">
+                    Release Notes
+                  </h1>
+                  <p className="text-[11px] text-slate-500 uppercase tracking-wide">
+                    Automation Tool
+                  </p>
+                </div>
+              </Link>
 
-                {/* ✅ FIXED: Workspace indicator */}
-                {workspaceName && (
-                  <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                    <span className="text-xs text-gray-400">
-                      <span className="text-purple-300 font-medium">{workspaceName}</span>
-                    </span>
-                  </div>
-                )}
-              </div>
+              {/* Navigation tabs */}
+              <nav className="flex items-center gap-2 overflow-x-auto">
+                <NavLink
+                  to="/"
+                  icon={
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                      />
+                    </svg>
+                  }
+                >
+                  Upload
+                </NavLink>
+
+                <NavLink
+                  to="/results"
+                  icon={
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                      />
+                    </svg>
+                  }
+                >
+                  Results
+                </NavLink>
+
+                <NavLink
+                  to="/report"
+                  icon={
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                  }
+                >
+                  Report
+                </NavLink>
+
+                {/* NEW: Delta Explorer tab */}
+                <NavLink
+                  to="/delta"
+                  icon={
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5m0-10V7a2 2 0 012-2h6l2 2h4"
+                      />
+                    </svg>
+                  }
+                >
+                  Delta Explorer
+                </NavLink>
+              </nav>
             </div>
+
+            {/* Right side: workspace indicator */}
+            {workspaceName && (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-md border border-purple-200 bg-purple-50 text-xs text-purple-700">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="font-medium">{workspaceName}</span>
+              </div>
+            )}
           </div>
         </header>
 
-        {/* Status Banner */}
-        <div className="relative z-10 shrink-0">
+        {/* Status Banner row */}
+        <div className="shrink-0 border-b bg-white">
           <StatusBanner />
         </div>
 
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-hidden relative z-0">
+        {/* Main routed content */}
+        <main className="flex-1 overflow-hidden">
           <Routes>
-            <Route 
-              path="/" 
+            <Route
+              path="/"
               element={
                 <div className="h-full overflow-y-auto">
                   <UploadPage />
                 </div>
-              } 
+              }
             />
-            
+
+            <Route path="/results" element={<ComparisonAndReviewPage />} />
+
             <Route
-              path="/results"
-              element={<ComparisonAndReviewPage />}
-            />
-            
-            <Route 
-              path="/report" 
+              path="/report"
               element={
-                <div className="h-full overflow-y-auto p-6">
+                <div className="h-full overflow-y-auto p-4 md:p-6">
                   <ReportPreviewPage />
                 </div>
-              } 
+              }
+            />
+
+            {/* NEW: Delta Explorer route */}
+            <Route
+              path="/delta"
+              element={
+                <div className="h-full overflow-y-auto">
+                  <DeltaExplorerPage />
+                </div>
+              }
             />
           </Routes>
         </main>
 
-        {/* Footer accent */}
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-500/30 to-transparent pointer-events-none z-10" />
+        {/* Simple bottom divider */}
+        <div className="h-px bg-purple-100" />
       </div>
 
       {/* Workspace Modal */}

@@ -71,15 +71,16 @@ def add_diff_image_to_excel(
     image_file_path: str,
     component_name: str = "",
     sheet_name: str = None,
+    server_name: str = "",
 ) -> Tuple[bool, str, int]:
     """
     Add a screenshot image to the given Excel file in a separate sheet.
 
     - One sheet per component (based on component_name)
-    - Each image is placed in its own block of rows so they don't overlap,
-      even across multiple "Capture All" runs.
+    - Every call appends a new block (meta row + image row) at the *bottom*
+      of the sheet, so repeated "Capture all" runs never overlap old images.
     """
-    # Check if Excel is open
+        # Check if Excel is open
     if check_excel_open(excel_path):
         return False, "Please close Excel file first", 0
 
@@ -101,34 +102,38 @@ def add_diff_image_to_excel(
             sheet = workbook[sheet_name]
         else:
             sheet = workbook.create_sheet(sheet_name)
-            # Header row - matches component name structure from Reviewed Changes
-            sheet.append(["Component Name", "File Name", "Timestamp", "Screenshot"])
+
+        # --- Ensure server header row at top (once) ---
+
+        if server_name:
+            first_val = str(sheet["A1"].value or "")
+            if not first_val.startswith("Server:"):
+                # If row 1 already has data, push everything down by one row
+                if sheet.max_row > 0 and any(c.value is not None for c in sheet[1]):
+                    sheet.insert_rows(1)
+                sheet["A1"] = f"Server: {server_name}"
+
+        # --- Ensure column headers below server row ---
+
+        header_row_index = 2 if str(sheet["A1"].value or "").startswith("Server:") else 1
+        first_header_cell = sheet.cell(row=header_row_index, column=1).value
+
+        if first_header_cell != "Component Name":
+            headers = ["Component Name", "File Name", "Timestamp", "Screenshot"]
+            for col, value in enumerate(headers, start=1):
+                sheet.cell(row=header_row_index, column=col, value=value)
 
         # --- Decide where to put the next screenshot ---
 
-        # 1) Last row that has data (header + meta rows)
-        last_data_row = sheet.max_row or 1
+        # Always append *after* the last used row in the sheet.
+        last_row = sheet.max_row or 1
 
-        # 2) Last row that has a custom height (we set this on image rows)
-        #    Only consider rows where height was explicitly set
-        existing_height_rows = [
-            r for r, dim in sheet.row_dimensions.items()
-            if dim.height is not None
-        ]
-        last_height_row = max(existing_height_rows) if existing_height_rows else 1
+        # Leave a small gap under the last used row
+        GAP_ROWS = 2
+        meta_row = last_row + GAP_ROWS     # row for component/file/timestamp
+        image_row = meta_row + 1           # row where the image is anchored
 
-        # Use whichever is lower in the sheet (data or image rows)
-        last_used_row = max(last_data_row, last_height_row)
-
-        GAP_ROWS = 3
-        if last_used_row <= 1:
-            # Only header present – start at row 3
-            meta_row = 3
-        else:
-            # Leave a fixed gap under the last used row (meta or image)
-            meta_row = last_used_row + GAP_ROWS
-
-        # Meta info (component name + file name + timestamp)
+        # Meta info
         sheet.cell(row=meta_row, column=1, value=component_name)
         sheet.cell(row=meta_row, column=2, value=file_name)
         sheet.cell(
@@ -136,9 +141,6 @@ def add_diff_image_to_excel(
             column=3,
             value=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         )
-
-        # Row where image will be anchored (1 row below metadata)
-        image_row = meta_row + 1
 
         # --- Load and scale image (WIDTH only) ---
         img = XLImage(image_file_path)
@@ -177,8 +179,7 @@ def add_diff_image_to_excel(
         except Exception:
             pass
 
-        # IMPORTANT: ensure this image row "counts" for max_row next time.
-        # We put a harmless empty string in D{image_row} if it's empty.
+        # Ensure this image row counts for max_row next time
         if sheet.cell(row=image_row, column=4).value is None:
             sheet.cell(row=image_row, column=4, value="")
 
@@ -189,6 +190,7 @@ def add_diff_image_to_excel(
         return False, "Please close Excel file first", 0
     except Exception as exc:
         return False, f"Error writing screenshot to Excel: {exc}", 0
+    
 def update_excel_file(
     excel_path: str,
     file_diffs: List[FileDiff],
@@ -404,3 +406,99 @@ def write_changes_to_excel(
     return False, "Please close Excel file first", 0
   except Exception as e:
     return False, f"Error writing to Excel: {str(e)}", 0
+  
+def write_delta_groups_to_excel(
+    excel_path: str,
+    database_name: str,
+    groups: List[Dict],
+    sheet_name: str = None,
+) -> Tuple[bool, str, int]:
+    """
+    Write delta groups into Excel in a matrix layout:
+
+        B2: <DatabaseName>
+
+        B4: TableScripts   C4: StoredProcedures   D4: Functions   E4: Index   ...
+
+        Under each folder name column, list the .sql files in that folder.
+
+    One sheet per database. If the sheet already exists, it is cleared
+    and rewritten with the new content.
+    """
+    if check_excel_open(excel_path):
+        return False, "Please close Excel file first", 0
+
+    try:
+        # Load or create workbook
+        if path_exists(excel_path):
+            try:
+                workbook = load_workbook(excel_path)
+            except Exception as e:
+                return False, f"Error opening Excel file: {str(e)}", 0
+        else:
+            workbook = Workbook()
+            if "Sheet" in workbook.sheetnames:
+                workbook.remove(workbook["Sheet"])
+
+        # Decide sheet name: default to database_name (sanitized to Excel rules)
+        if not sheet_name:
+            # Reuse the sheet_name_from_component helper, just with db name
+            sheet_name = sheet_name_from_component(database_name or "Database")
+
+        # If sheet already exists, remove it (we want a fresh layout each time)
+        if sheet_name in workbook.sheetnames:
+            ws_old = workbook[sheet_name]
+            workbook.remove(ws_old)
+
+        sheet = workbook.create_sheet(sheet_name)
+
+        # Layout constants
+        DB_ROW = 2          # row where database name goes
+        HEADER_ROW = 4      # row where folder names go
+        START_COL = 2       # column B (1-based index)
+
+        # 1) Database name at B2
+        sheet.cell(row=DB_ROW, column=START_COL, value=database_name)
+
+        # 2) Folder names in row 4, starting at B4
+        #    We use the order given by 'groups'
+        written_rows = 0
+        for idx, group in enumerate(groups or []):
+            col = START_COL + idx
+            header_cell = sheet.cell(row=HEADER_ROW, column=col, value=group.get("name", ""))
+
+            # Simple header styling
+            header_cell.font = Font(bold=True, color="000000")
+            header_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            # 3) Files listed under each folder name
+            row = HEADER_ROW + 1
+            for f in group.get("files", []):
+                sheet.cell(row=row, column=col, value=f.get("file_name", ""))
+                row += 1
+                written_rows += 1
+
+        # Auto-fit column widths based on longest value per column
+        for col_num, column in enumerate(sheet.columns, 1):
+            max_length = 0
+            col_letter = get_column_letter(col_num)
+            for cell in column:
+                try:
+                    if cell.value is not None:
+                        max_length = max(max_length, len(str(cell.value)))
+                except Exception:
+                    pass
+            if max_length > 0:
+                sheet.column_dimensions[col_letter].width = min(max_length + 2, 60)
+
+        workbook.save(excel_path)
+        msg = (
+            f"Delta groups written for database '{database_name}' "
+            f"to sheet '{sheet_name}'. Added {written_rows} file name(s)."
+        )
+        return True, msg, written_rows
+
+    except PermissionError:
+        return False, "Please close Excel file first", 0
+    except Exception as e:
+        return False, f"Error writing delta groups to Excel: {str(e)}", 0

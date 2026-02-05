@@ -17,25 +17,35 @@ def ensure_workspaces_dir():
     """Ensure workspaces directory exists."""
     Path(WORKSPACES_DIR).mkdir(exist_ok=True)
 
-def create_workspace(name: str, old_folder: str = "", new_folder: str = "", excel_path: str = "") -> Dict:
-    """Create a new workspace."""
+def create_workspace(
+    name: str,
+    old_folder: str = "",
+    new_folder: str = "",
+    excel_path: str = "",
+    project_name: str = "",
+    environments: Optional[List[Dict]] = None,
+) -> Dict:
+    """Create a new workspace (project)."""
     ensure_workspaces_dir()
     workspace_dir = Path(WORKSPACES_DIR) / name
     workspace_dir.mkdir(exist_ok=True)
-    
+
     metadata = {
         "name": name,
+        "project_name": project_name or name,
+        # legacy single-folder config
         "old_folder": old_folder,
         "new_folder": new_folder,
         "excel_path": excel_path,
-        "history": []
+        # new hierarchical config
+        "environments": environments or [],
+        "history": [],
     }
-    
+
     with open(workspace_dir / "metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
-    
-    return metadata
 
+    return metadata
 def list_workspaces() -> List[str]:
     """List all workspace names."""
     ensure_workspaces_dir()
@@ -73,6 +83,16 @@ def add_comparison_to_history(workspace_name: str, comparison_result: Dict):
     if workspace:
         workspace["history"].append(comparison_result)
         update_workspace(workspace_name, {"history": workspace["history"]})
+
+
+def find_server_config(workspace: Dict, env_name: str, server_name: str) -> Optional[Dict]:
+    """Find a server configuration by environment + server name."""
+    for env in workspace.get("environments", []):
+        if env.get("name") == env_name:
+            for srv in env.get("servers", []):
+                if srv.get("name") == server_name:
+                    return srv
+    return None
 
 # ✅ NEW
 def delete_workspace(name: str) -> bool:

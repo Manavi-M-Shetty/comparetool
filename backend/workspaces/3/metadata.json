@@ -1,7 +1,18 @@
 {
   "name": "3",
+  "project_name": "3",
   "old_folder": "",
   "new_folder": "",
   "excel_path": "",
+  "environments": [
+    {
+      "name": "lab",
+      "servers": [
+        {
+          "name": "server1"
+        }
+      ]
+    }
+  ],
   "history": []
 }

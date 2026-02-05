@@ -10,34 +10,64 @@ function ChangeTypeBadge({ file }) {
   // Determine status based on backend data
   if (file.missing_side === 'OLD' || (file.summary && file.summary.includes('Missing in OLD'))) {
     type = 'added';
-    label = 'New File (Added)';
+    label = 'New file (added)';
   } else if (file.missing_side === 'NEW' || (file.summary && file.summary.includes('Missing in NEW'))) {
     type = 'removed';
-    label = 'Missing (Removed)';
+    label = 'Missing (removed)';
   }
 
   const configs = {
     modified: {
-      className: 'bg-amber-500/10 text-amber-300 border-amber-500/20',
+      className: 'bg-amber-50 text-amber-700 border-amber-200',
       icon: (
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        <svg
+          className="w-3 h-3"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+          />
         </svg>
       ),
     },
     added: {
-      className: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
+      className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       icon: (
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+        <svg
+          className="w-3 h-3"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 4v16m8-8H4"
+          />
         </svg>
       ),
     },
     removed: {
-      className: 'bg-red-500/10 text-red-300 border-red-500/20',
+      className: 'bg-red-50 text-red-700 border-red-200',
       icon: (
-        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        <svg
+          className="w-3 h-3"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M6 18L18 6M6 6l12 12"
+          />
         </svg>
       ),
     },
@@ -46,7 +76,9 @@ function ChangeTypeBadge({ file }) {
   const config = configs[type];
 
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider rounded-md border ${config.className}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider rounded-md border ${config.className}`}
+    >
       {config.icon}
       {label}
     </span>
@@ -56,20 +88,29 @@ function ChangeTypeBadge({ file }) {
 // Stats Card Component
 function StatCard({ icon, label, value, color = 'purple' }) {
   const colors = {
-    purple: 'from-purple-500/20 to-pink-500/20 border-purple-500/20 text-purple-300',
-    amber: 'from-amber-500/20 to-orange-500/20 border-amber-500/20 text-amber-300',
-    emerald: 'from-emerald-500/20 to-green-500/20 border-emerald-500/20 text-emerald-300',
-    cyan: 'from-cyan-500/20 to-blue-500/20 border-cyan-500/20 text-cyan-300',
+    purple: 'border-purple-200 text-purple-800',
+    amber: 'border-amber-200 text-amber-800',
+    emerald: 'border-emerald-200 text-emerald-800',
+    cyan: 'border-cyan-200 text-cyan-800',
+  };
+
+  const iconBg = {
+    purple: 'bg-purple-50 text-purple-700',
+    amber: 'bg-amber-50 text-amber-700',
+    emerald: 'bg-emerald-50 text-emerald-700',
+    cyan: 'bg-cyan-50 text-cyan-700',
   };
 
   return (
-    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r ${colors[color]} border backdrop-blur-sm`}>
-      <div className="p-2 rounded-lg bg-white/10">
+    <div className={`glass-panel px-4 py-3 flex items-center gap-3 border ${colors[color]}`}>
+      <div className={`p-2 rounded-md ${iconBg[color]}`}>
         {icon}
       </div>
       <div>
-        <div className="text-xl font-bold text-white">{value}</div>
-        <div className="text-[10px] uppercase tracking-wider text-white/60">{label}</div>
+        <div className="text-xl font-bold text-slate-900">{value}</div>
+        <div className="text-[10px] uppercase tracking-wider text-slate-500">
+          {label}
+        </div>
       </div>
     </div>
   );
@@ -80,66 +121,120 @@ export default function ReportPreviewPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const changedFiles = useMemo(() => {
-    return (folderResult?.file_summaries || []).filter(fs => fs.has_changes);
+    return (folderResult?.file_summaries || []).filter((fs) => fs.has_changes);
   }, [folderResult]);
 
   const filteredFiles = useMemo(() => {
     if (!searchTerm) return changedFiles;
-    return changedFiles.filter(fs => 
-      fs.file_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fs.component_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    return changedFiles.filter(
+      (fs) =>
+        fs.file_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        fs.component_name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [changedFiles, searchTerm]);
 
   const totalComments = useMemo(() => {
-    return Object.values(comments).reduce((acc, fileComments) => 
-      acc + Object.keys(fileComments).length, 0
+    return Object.values(comments).reduce(
+      (acc, fileComments) => acc + Object.keys(fileComments).length,
+      0
     );
   }, [comments]);
 
   return (
-    <div className="min-h-full relative">
-      {/* Background effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-pink-600/10 rounded-full blur-[120px]" />
-      </div>
-
-      <div className="relative max-w-6xl mx-auto p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="min-h-full px-4 py-4 md:px-6 md:py-6 bg-slate-100">
+      <div className="max-w-6xl mx-auto space-y-4">
         {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-white mb-1">
-              Report Preview
-            </h1>
-            <p className="text-sm text-gray-400">
-              Overview of all changed files.
-            </p>
-          </div>
+        <div className="glass-panel px-4 py-3 md:px-5 md:py-4 flex flex-col gap-1">
+          <h1 className="text-lg md:text-xl font-semibold text-slate-900">
+            Report preview
+          </h1>
+          <p className="text-sm text-slate-500">
+            Overview of all changed files and their status.
+          </p>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <StatCard
-            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
-            label="Files Changed"
+            icon={
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            }
+            label="Files changed"
             value={changedFiles.length}
             color="purple"
           />
           <StatCard
-            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
+            icon={
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
+              </svg>
+            }
             label="Modifications"
-            value={changedFiles.filter(f => !f.summary?.includes('Missing')).length}
+            value={
+              changedFiles.filter(
+                (f) => !f.summary?.includes('Missing')
+              ).length
+            }
             color="amber"
           />
           <StatCard
-            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>}
-            label="Total Comments"
+            icon={
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                />
+              </svg>
+            }
+            label="Total comments"
             value={totalComments}
             color="emerald"
           />
           <StatCard
-            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" /></svg>}
+            icon={
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
+                />
+              </svg>
+            }
             label="Components"
             value={folderResult?.total_components || 0}
             color="cyan"
@@ -147,52 +242,72 @@ export default function ReportPreviewPage() {
         </div>
 
         {/* Main content table */}
-        <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="glass-panel flex flex-col overflow-hidden">
           {/* Toolbar */}
-          <div className="p-4 bg-black/20 border-b border-white/5">
+          <div className="p-3 border-b border-slate-200">
             <div className="relative max-w-sm">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
               </svg>
               <input
                 type="text"
                 placeholder="Search files or components..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-black/30 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 transition-all"
+                className="w-full pl-9 pr-3 py-2 rounded-md border border-slate-300 bg-white text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
               />
             </div>
           </div>
 
-          {/* Simple Table */}
+          {/* Table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="bg-white/5 border-b border-white/10 text-xs uppercase tracking-wider text-gray-400">
-                  <th className="px-6 py-4 font-semibold w-1/3">Component</th>
-                  <th className="px-6 py-4 font-semibold w-1/3">File Name</th>
-                  <th className="px-6 py-4 font-semibold text-right w-1/3">Status</th>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">
+                  <th className="px-6 py-3 font-medium w-1/3">Component</th>
+                  <th className="px-6 py-3 font-medium w-1/3">File name</th>
+                  <th className="px-6 py-3 font-medium text-right w-1/3">
+                    Status
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-slate-100">
                 {filteredFiles.length > 0 ? (
                   filteredFiles.map((file, idx) => (
-                    <tr key={idx} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 text-sm text-purple-300 font-medium">
+                    <tr
+                      key={idx}
+                      className="hover:bg-purple-50/60 transition-colors"
+                    >
+                      <td className="px-6 py-3 text-sm text-purple-800 font-medium">
                         {file.component_name}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-200">
+                      <td className="px-6 py-3 text-sm text-slate-700">
                         {file.file_name}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-3 text-right">
                         <ChangeTypeBadge file={file} />
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="3" className="px-6 py-12 text-center text-gray-500 text-sm">
-                      {searchTerm ? 'No matching files found' : 'No changes found'}
+                    <td
+                      colSpan="3"
+                      className="px-6 py-10 text-center text-sm text-slate-500"
+                    >
+                      {searchTerm
+                        ? 'No matching files found'
+                        : 'No changes found'}
                     </td>
                   </tr>
                 )}

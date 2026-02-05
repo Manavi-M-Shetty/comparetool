@@ -2,22 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global Theme Overrides */
+/* Global Theme (flat, purple) */
 :root {
-  --bg-dark: #0f0718;
-  --glass-border: rgba(255, 255, 255, 0.1);
+  --bg-page: #f3f4f6;          /* page background */
+  --bg-card: #ffffff;          /* cards / panels */
+  --border-subtle: #e5e7eb;
+  --text-main: #111827;
+
+  --primary-50:  #f5f3ff;
+  --primary-100: #ede9fe;
+  --primary-200: #ddd6fe;
+  --primary-400: #a855f7;
+  --primary-500: #8b5cf6;
+  --primary-600: #7c3aed;      /* main purple */
+  --primary-700: #6d28d9;
 }
 
+/* Base body */
 body {
-  /* Deep purple/black gradient background */
-  background: radial-gradient(circle at top left, #2e1065, #0f0718 40%);
-  background-color: #0f0718;
-  color: #e2e8f0; /* Light gray text for readability */
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-page); /* flat background, no gradient */
+  color: var(--text-main);
+  font-family: 'Roboto', system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
   min-height: 100vh;
+  margin: 0;
 }
 
-/* Custom Scrollbar */
+/* Reusable flat card / panel */
+.glass-panel {
+  background-color: var(--bg-card);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.5); /* slate-400 @ 50% */
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -28,21 +49,15 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4c1d95;
+  background: var(--primary-200);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #6d28d9;
+  background: var(--primary-400);
 }
 
-/* Utility for glassmorphism cards */
-.glass-panel {
-  background: rgba(30, 27, 75, 0.4);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
+/* Thin scrollbar variant */
 .scrollbar-thin::-webkit-scrollbar {
   width: 4px;
 }
@@ -52,10 +67,31 @@ body {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(168, 85, 247, 0.2);
+  background: rgba(139, 92, 246, 0.25); /* primary-500 @ 25% */
   border-radius: 2px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(168, 85, 247, 0.4);
+  background: rgba(139, 92, 246, 0.45);
+}
+
+/* Uniform button styles (flat, purple) */
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-3 py-1.5 rounded-md
+      text-sm font-medium
+      bg-purple-600 text-white
+      hover:bg-purple-700
+      focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1
+      disabled:bg-purple-300 disabled:text-purple-100 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-3 py-1.5 rounded-md
+      text-sm font-medium
+      bg-white text-purple-700 border border-purple-200
+      hover:bg-purple-50
+      focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1
+      disabled:opacity-60 disabled:cursor-not-allowed;
+  }
 }

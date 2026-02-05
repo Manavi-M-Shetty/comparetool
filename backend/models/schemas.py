@@ -2,7 +2,7 @@
 Pydantic schemas for API request/response models.
 """
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CompareRequest(BaseModel):
@@ -138,19 +138,79 @@ class CompareAndUpdateRequest(BaseModel):
     comments: Optional[Dict[str, Dict[str, str]]] = {}
     workspace_id: str
 
+class ServerConfig(BaseModel):
+    """Single server in an environment."""
+    name: str
+    # Optional fields – not used yet in UI, but safe to keep
+    old_folder: str = ""
+    new_folder: str = ""
+    excel_path: str = ""
+
+
+class EnvironmentConfig(BaseModel):
+    """Environment (LAB / SIT / UAT / etc.) containing multiple servers."""
+    name: str
+    servers: List[ServerConfig] = Field(default_factory=list)
+
 
 class WorkspaceCreateRequest(BaseModel):
-    """Request model for creating a workspace."""
-    name: str
+    """Request model for creating a workspace (project)."""
+    name: str                               # project/workspace id
+    project_name: Optional[str] = ""        # display name; can equal `name`
+    # legacy single-folder fields (keep for compatibility)
     old_folder: Optional[str] = ""
     new_folder: Optional[str] = ""
     excel_path: Optional[str] = ""
+    # new hierarchical structure
+    environments: List[EnvironmentConfig] = Field(default_factory=list)
 
 
 class WorkspaceResponse(BaseModel):
     """Response model for workspace data."""
     name: str
-    old_folder: str
-    new_folder: str
-    excel_path: str
-    history: List[Dict[str, Any]]
+    project_name: Optional[str] = ""
+    old_folder: str = ""
+    new_folder: str = ""
+    excel_path: str = ""
+    environments: List[EnvironmentConfig] = Field(default_factory=list)
+    history: List[Dict[str, Any]] = Field(default_factory=list)
+
+class WorkspaceUpdateRequest(BaseModel):
+    """Partial update for workspace (used to update environments, names, etc.)."""
+    project_name: Optional[str] = None
+    old_folder: Optional[str] = None
+    new_folder: Optional[str] = None
+    excel_path: Optional[str] = None
+    environments: Optional[List[EnvironmentConfig]] = None
+
+class DeltaGroupFile(BaseModel):
+    """Single SQL file in a delta group."""
+    file_name: str
+    relative_path: str
+    full_path: str
+
+
+class DeltaGroup(BaseModel):
+    """A delta group folder under DeltaDrop (e.g., TableScripts, StoredProcedures)."""
+    name: str
+    files: List[DeltaGroupFile] = Field(default_factory=list)
+
+
+class DeltaScanRequest(BaseModel):
+    """
+    Request for scanning a database DeltaDrop structure.
+
+    root_folder: path to the DatabaseName folder
+                 (the folder that contains BaseDrop and DeltaDrop)
+    excel_path: optional Excel to write results into
+    """
+    root_folder: str
+    excel_path: Optional[str] = ""
+
+
+class DeltaScanResponse(BaseModel):
+    """Response for delta scan (and optional Excel write)."""
+    database_name: str
+    groups: List[DeltaGroup]
+    excel_written: bool
+    message: str

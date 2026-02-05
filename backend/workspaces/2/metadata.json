@@ -1,23 +1,12 @@
 {
-  "name": "1",
-  "project_name": "1",
+  "name": "2",
+  "project_name": "2",
   "old_folder": "",
   "new_folder": "",
   "excel_path": "",
   "environments": [
     {
       "name": "lab",
-      "servers": [
-        {
-          "name": "server1",
-          "old_folder": "",
-          "new_folder": "",
-          "excel_path": ""
-        }
-      ]
-    },
-    {
-      "name": "SAT",
       "servers": [
         {
           "name": "server1",

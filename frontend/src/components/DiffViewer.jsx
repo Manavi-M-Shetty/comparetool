@@ -12,38 +12,39 @@ import html2canvas from 'html2canvas';
 import { uploadDiffScreenshot } from '../utils/api';
 import { getComponentName } from '../utils/fileUtils';
 
-
-// Enhanced dark theme styles for ReactDiffViewer
-const darkDiffStyles = {
+// Light theme styles for ReactDiffViewer
+const diffStyles = {
   variables: {
-    dark: {
-      diffViewerBackground: '#0c0a14',
-      diffViewerColor: '#e2e8f0',
-      addedBackground: 'rgba(16, 185, 129, 0.15)',
-      addedColor: '#6ee7b7',
-      removedBackground: 'rgba(239, 68, 68, 0.15)',
-      removedColor: '#fca5a5',
-      wordAddedBackground: 'rgba(16, 185, 129, 0.4)',
-      wordRemovedBackground: 'rgba(239, 68, 68, 0.4)',
-      addedGutterBackground: 'rgba(16, 185, 129, 0.2)',
-      removedGutterBackground: 'rgba(239, 68, 68, 0.2)',
-      gutterBackground: '#1a1625',
-      gutterColor: '#6b7280',
-      codeFoldGutterBackground: '#1a1625',
-      codeFoldBackground: '#1a1625',
-      emptyLineBackground: '#0c0a14',
-      gutterBorder: 'rgba(139, 92, 246, 0.1)',
+    light: {
+      diffViewerBackground: '#ffffff',
+      diffViewerColor: '#111827', // slate-900
+      addedBackground: 'rgba(34, 197, 94, 0.12)', // green-500 @12%
+      addedColor: '#166534', // green-700
+      removedBackground: 'rgba(248, 113, 113, 0.12)', // red-400 @12%
+      removedColor: '#b91c1c', // red-700
+      wordAddedBackground: 'rgba(34, 197, 94, 0.35)',
+      wordRemovedBackground: 'rgba(248, 113, 113, 0.35)',
+      addedGutterBackground: 'rgba(34, 197, 94, 0.10)',
+      removedGutterBackground: 'rgba(248, 113, 113, 0.10)',
+      gutterBackground: '#f9fafb', // slate-50
+      gutterColor: '#6b7280', // slate-500
+      codeFoldGutterBackground: '#f3f4f6', // slate-100
+      codeFoldBackground: '#f3f4f6',
+      emptyLineBackground: '#ffffff',
+      gutterBorder: '#e5e7eb', // slate-200
       lineNumber: '#6b7280',
-      diffViewerTitleBackground: '#1a1625',
-      diffViewerTitleColor: '#e2e8f0',
-      diffViewerTitleBorder: 'rgba(139, 92, 246, 0.1)',
-    }
+      diffViewerTitleBackground: '#f9fafb',
+      diffViewerTitleColor: '#111827',
+      diffViewerTitleBorder: '#e5e7eb',
+    },
   },
   line: {
     padding: '2px 0',
     fontSize: '12px',
     lineHeight: '1.6',
-    fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    fontFamily:
+      '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    color: '#111827', // dark text on white
   },
   gutter: {
     minWidth: '50px',
@@ -51,15 +52,17 @@ const darkDiffStyles = {
     cursor: 'pointer',
   },
   contentText: {
-    fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-  }
+    fontFamily:
+      '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    color: '#111827',
+  },
 };
 
 // Comment Badge Component
 function CommentBadge({ count }) {
   if (!count) return null;
   return (
-    <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold bg-purple-500 text-white rounded-full animate-pulse">
+    <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold bg-purple-600 text-white rounded-full">
       {count}
     </span>
   );
@@ -68,14 +71,16 @@ function CommentBadge({ count }) {
 // Section Header Component
 function SectionHeader({ icon, title, subtitle, action }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-900/80 to-purple-950/30 border-b border-purple-500/10">
+    <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
       <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
+        <div className="p-2 rounded-lg bg-purple-50 border border-purple-100 text-purple-600">
           {icon}
         </div>
         <div>
-          <h4 className="text-sm font-semibold text-white">{title}</h4>
-          {subtitle && <p className="text-[10px] text-gray-500">{subtitle}</p>}
+          <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
+          {subtitle && (
+            <p className="text-[10px] text-slate-500">{subtitle}</p>
+          )}
         </div>
       </div>
       {action}
@@ -94,6 +99,7 @@ const DiffViewer = forwardRef(function DiffViewer(
     fileName = '',
     filePath = '',
     excelPath = '',
+    serverName = '',            // 👈 NEW: server name from parent
     onReady,
   },
   ref
@@ -114,9 +120,11 @@ const DiffViewer = forwardRef(function DiffViewer(
   }, [newText, fileName, filePath]);
 
   useLayoutEffect(() => {
-    window.dispatchEvent(new CustomEvent('diff-rendered', { detail: { fileName, filePath } }));
+    window.dispatchEvent(
+      new CustomEvent('diff-rendered', { detail: { fileName, filePath } })
+    );
     if (onReady) onReady();
-  }, [oldText, editableNewText, fileName]);
+  }, [oldText, editableNewText, fileName, filePath, onReady]);
 
   const handleNewChange = (e) => {
     const value = e.target.value;
@@ -140,10 +148,16 @@ const DiffViewer = forwardRef(function DiffViewer(
     }
 
     const rect = containerRef.current.getBoundingClientRect();
-    const offsetY = event.clientY - rect.top + containerRef.current.scrollTop;
+    const offsetY =
+      event.clientY - rect.top + containerRef.current.scrollTop;
 
     setActiveLine(lineNumber);
-    setPopoverTop(Math.max(16, Math.min(offsetY, containerRef.current.scrollHeight - 250)));
+    setPopoverTop(
+      Math.max(
+        16,
+        Math.min(offsetY, containerRef.current.scrollHeight - 250)
+      )
+    );
     setTempComment(getExistingComment(lineNumber));
   };
 
@@ -171,11 +185,15 @@ const DiffViewer = forwardRef(function DiffViewer(
         lowerPath.includes('/configs/') || lowerPath.includes('\\configs\\');
 
       if (!excelPath) {
-        if (!options.silent) alert('Excel path not set. Cannot save screenshot.');
+        if (!options.silent)
+          alert('Excel path not set. Cannot save screenshot.');
         return;
       }
       if (!isConfigFile) {
-        if (!options.silent) alert('Current file is not under a Configs folder; screenshot skipped.');
+        if (!options.silent)
+          alert(
+            'Current file is not under a Configs folder; screenshot skipped.'
+          );
         return;
       }
       if (!diffRef.current) {
@@ -186,7 +204,10 @@ const DiffViewer = forwardRef(function DiffViewer(
       try {
         const diffEl = diffRef.current;
 
-        const findChangedCellsWithRetry = async (retries = 3, interval = 300) => {
+        const findChangedCellsWithRetry = async (
+          retries = 3,
+          interval = 300
+        ) => {
           for (let attempt = 0; attempt < retries; attempt++) {
             const cells = diffEl.querySelectorAll(
               '[class*="diff-added"], [class*="diff-removed"], [class*="diff-changed"]'
@@ -199,13 +220,15 @@ const DiffViewer = forwardRef(function DiffViewer(
 
         const changedCells = await findChangedCellsWithRetry();
         if (!changedCells || changedCells.length === 0) {
-          if (!options.silent) alert('No highlighted differences found to capture.');
+          if (!options.silent)
+            alert('No highlighted differences found to capture.');
           return;
         }
 
         const table = diffEl.querySelector('table');
         if (!table) {
-          if (!options.silent) alert('Diff table not found; cannot capture screenshot.');
+          if (!options.silent)
+            alert('Diff table not found; cannot capture screenshot.');
           return;
         }
 
@@ -224,7 +247,8 @@ const DiffViewer = forwardRef(function DiffViewer(
 
         const indices = Array.from(rowIndexSet).sort((a, b) => a - b);
         if (!indices.length) {
-          if (!options.silent) alert('No highlighted differences found to capture.');
+          if (!options.silent)
+            alert('No highlighted differences found to capture.');
           return;
         }
 
@@ -232,8 +256,8 @@ const DiffViewer = forwardRef(function DiffViewer(
         tempContainer.style.position = 'fixed';
         tempContainer.style.left = '-10000px';
         tempContainer.style.top = '0';
-        tempContainer.style.background = '#0c0a14';
-        tempContainer.style.color = '#e2e8f0';
+        tempContainer.style.background = '#ffffff';
+        tempContainer.style.color = '#111827';
         tempContainer.style.padding = '10px';
         tempContainer.style.boxSizing = 'border-box';
 
@@ -245,7 +269,8 @@ const DiffViewer = forwardRef(function DiffViewer(
         tempTable.style.borderCollapse = 'collapse';
         tempTable.style.width = '100%';
         tempTable.style.tableLayout = 'fixed';
-        tempTable.style.fontFamily = '"Consolas","Menlo","Courier New",monospace';
+        tempTable.style.fontFamily =
+          '"Consolas","Menlo","Courier New",monospace';
         tempTable.style.fontSize = '11px';
         tempTable.style.lineHeight = '1.3';
 
@@ -267,15 +292,14 @@ const DiffViewer = forwardRef(function DiffViewer(
             const computedStyle = window.getComputedStyle(cell);
             cell.style.backgroundColor = computedStyle.backgroundColor;
             cell.style.color = computedStyle.color;
-            cell.style.borderBottom = '1px solid rgba(139, 92, 246, 0.1)';
+            cell.style.borderBottom =
+              '1px solid rgba(148, 163, 184, 0.4)';
           });
           tempTable.appendChild(cloneRow);
         });
 
         tempContainer.appendChild(tempTable);
         document.body.appendChild(tempContainer);
-
-        // ... after appending tempContainer ...
 
         // Wait for fonts and layout to settle before capturing
         try {
@@ -285,12 +309,12 @@ const DiffViewer = forwardRef(function DiffViewer(
         } catch (e) {
           // ignore
         }
-        await new Promise(res =>
+        await new Promise((res) =>
           requestAnimationFrame(() => requestAnimationFrame(res))
         );
 
         const canvas = await html2canvas(tempContainer, {
-          backgroundColor: '#0c0a14',
+          backgroundColor: '#ffffff',
           scale: 1.2,
           width: CAPTURE_WIDTH,
           windowWidth: CAPTURE_WIDTH,
@@ -300,22 +324,35 @@ const DiffViewer = forwardRef(function DiffViewer(
 
         const blob = await new Promise((resolve, reject) => {
           canvas.toBlob((b) => {
-            if (!b) return reject(new Error('Failed to convert canvas to Blob'));
+            if (!b)
+              return reject(
+                new Error('Failed to convert canvas to Blob')
+              );
             resolve(b);
           }, 'image/png');
         });
 
-        if (!blob || blob.size === 0) throw new Error('Screenshot blob is empty');
+        if (!blob || blob.size === 0)
+          throw new Error('Screenshot blob is empty');
 
         const componentName = getComponentName(filePath);
-        const resp = await uploadDiffScreenshot(excelPath, fileName || 'diff', blob, componentName);
-        if (!options.silent) alert(resp.message || 'Screenshot added to Excel.');
+
+        // pass serverName through to backend
+        const resp = await uploadDiffScreenshot(
+          excelPath,
+          fileName || 'diff',
+          blob,
+          componentName,
+          serverName || ''
+        );
+
+        if (!options.silent)
+          alert(resp.message || 'Screenshot added to Excel.');
       } catch (err) {
         console.warn('Error capturing diff screenshot:', err);
 
-        // FastAPI HTTPException returns { detail: "..." }
         const backendMessage =
-          err?.response?.data?.detail ||   // <-- main case
+          err?.response?.data?.detail ||
           err?.response?.data?.message ||
           err?.message ||
           'Failed to capture screenshot.';
@@ -324,22 +361,33 @@ const DiffViewer = forwardRef(function DiffViewer(
           alert(backendMessage);
         }
 
-        // IMPORTANT: propagate to caller (Capture View / Capture All)
         throw new Error(backendMessage);
       }
     },
   }));
 
-  const savedComments = (comments || []).filter((c) => c.comment && c.comment.trim());
+  const savedComments = (comments || []).filter(
+    (c) => c.comment && c.comment.trim()
+  );
 
   // Special status handlers
   if (status === 'added') {
     return (
-      <div className="h-full flex flex-col bg-gradient-to-br from-slate-900 to-emerald-950/20">
+      <div className="h-full flex flex-col bg-white">
         <SectionHeader
           icon={
-            <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            <svg
+              className="w-4 h-4 text-purple-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
             </svg>
           }
           title="New File"
@@ -347,7 +395,7 @@ const DiffViewer = forwardRef(function DiffViewer(
         />
         <div className="flex-1 p-4 overflow-auto">
           <textarea
-            className="w-full h-full min-h-[400px] p-4 rounded-xl border border-emerald-500/20 bg-black/30 text-gray-200 font-mono text-sm focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 focus:outline-none resize-none transition-all"
+            className="w-full h-full min-h-[400px] p-4 rounded-md border border-slate-300 bg-white text-slate-900 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
             value={editableNewText}
             onChange={handleNewChange}
             placeholder="Edit NEW content..."
@@ -359,95 +407,145 @@ const DiffViewer = forwardRef(function DiffViewer(
 
   if (status === 'missing' || status === 'missing_new') {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-red-950/20 p-8">
-        <div className="relative mb-6">
-          <div className="absolute inset-0 bg-red-500/20 rounded-full blur-2xl" />
-          <div className="relative p-6 rounded-full bg-gradient-to-br from-red-500/10 to-red-600/10 border border-red-500/20">
-            <svg className="w-12 h-12 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </div>
+      <div className="h-full flex flex-col items-center justify-center bg-white p-8">
+        <div className="mb-4 p-4 rounded-full bg-red-50 text-red-600 border border-red-100">
+          <svg
+            className="w-10 h-10"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            />
+          </svg>
         </div>
-        <h3 className="text-xl font-semibold text-red-300 mb-2">File Deleted</h3>
-        <p className="text-sm text-gray-500 text-center max-w-md">
-          This file exists only in the OLD version. There is no NEW version to compare against.
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">
+          File deleted
+        </h3>
+        <p className="text-sm text-slate-600 text-center max-w-md">
+          This file exists only in the OLD version. There is no NEW version
+          to compare against.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-[#0c0a14] to-purple-950/10 overflow-hidden">
+    <div className="h-full flex flex-col bg-white overflow-hidden">
       {/* Tab Navigation */}
-      <div className="flex items-center gap-1 px-4 py-2 bg-black/30 border-b border-purple-500/10">
+      <div className="flex items-center gap-1 px-4 py-2 bg-white border-b border-slate-200">
         {[
           {
-            id: 'diff', label: 'Diff View', icon: (
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            id: 'diff',
+            label: 'Diff View',
+            icon: (
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                />
               </svg>
-            )
+            ),
           },
           {
-            id: 'edit', label: 'Edit', icon: (
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            id: 'edit',
+            label: 'Edit',
+            icon: (
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                />
               </svg>
-            )
+            ),
           },
           {
-            id: 'comments', label: 'Comments', icon: (
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+            id: 'comments',
+            label: 'Comments',
+            icon: (
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                />
               </svg>
-            ), badge: savedComments.length
+            ),
+            badge: savedComments.length,
           },
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`
-              relative flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium
-              transition-all duration-200
-              ${activeTab === tab.id
-                ? 'bg-gradient-to-r from-purple-600/30 to-pink-600/30 text-white border border-purple-500/30'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }
-            `}
+            className={`relative flex items-center gap-2 px-4 py-2 rounded-md text-xs font-medium
+              ${
+                activeTab === tab.id
+                  ? 'bg-purple-50 text-purple-700 border border-purple-300'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
           >
             {tab.icon}
             <span className="hidden sm:inline">{tab.label}</span>
             {tab.badge > 0 && <CommentBadge count={tab.badge} />}
           </button>
         ))}
-
       </div>
 
       {/* Diff View Tab */}
       {activeTab === 'diff' && (
         <div
           ref={containerRef}
-          className="relative flex-1 overflow-auto scrollbar-thin scrollbar-thumb-purple-500/20 scrollbar-track-transparent"
+          className="relative flex-1 overflow-auto scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-transparent"
         >
           <div ref={diffRef} className="min-h-full">
             <ReactDiffViewer
               oldValue={oldText || ''}
               newValue={editableNewText || ''}
               splitView
-              useDarkTheme={true}
-              styles={darkDiffStyles}
+              useDarkTheme={false}
+              styles={diffStyles}
               showDiffOnly={false}
               onLineNumberClick={handleLineNumberClick}
               leftTitle={
                 <div className="flex items-center gap-2 px-4 py-2 text-xs">
-                  <span className="px-2 py-0.5 rounded bg-gray-700 text-gray-300 font-medium">OLD</span>
-                  <span className="text-gray-500">Read-only</span>
+                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
+                    OLD
+                  </span>
+                  <span className="text-slate-500">Read-only</span>
                 </div>
               }
               rightTitle={
                 <div className="flex items-center gap-2 px-4 py-2 text-xs">
-                  <span className="px-2 py-0.5 rounded bg-purple-600 text-white font-medium">NEW</span>
-                  <span className="text-purple-300">Click line numbers to add comments</span>
+                  <span className="px-2 py-0.5 rounded bg-purple-600 text-white font-medium">
+                    NEW
+                  </span>
+                  <span className="text-purple-700">
+                    Click line numbers to add comments
+                  </span>
                 </div>
               }
             />
@@ -456,48 +554,68 @@ const DiffViewer = forwardRef(function DiffViewer(
           {/* Comment Popover */}
           {activeLine != null && popoverTop != null && (
             <div
-              className="absolute right-4 w-80 z-50 animate-in fade-in slide-in-from-right-2 duration-200"
+              className="absolute right-4 w-80 z-50"
               style={{ top: popoverTop }}
             >
-              {/* Glow effect */}
-              <div className="absolute -inset-1 bg-gradient-to-r from-purple-600/30 to-pink-600/30 rounded-2xl blur-lg" />
-
-              <div className="relative bg-slate-900/95 backdrop-blur-xl border border-purple-500/30 rounded-xl shadow-2xl overflow-hidden">
+              <div className="relative bg-white border border-slate-200 rounded-md shadow-md overflow-hidden">
                 {/* Header */}
-                <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-b border-purple-500/20">
+                <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-purple-500/20">
-                      <svg className="w-3.5 h-3.5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                    <div className="p-1.5 rounded-md bg-purple-50 text-purple-700">
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                        />
                       </svg>
                     </div>
-                    <span className="text-sm font-semibold text-white">
+                    <span className="text-sm font-semibold text-slate-900">
                       Line {activeLine}
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={handleClosePopover}
-                    className="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                    className="p-1 rounded-md hover:bg-slate-100 text-slate-500 hover:text-slate-900"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
 
                 {/* Line Preview */}
-                <div className="px-4 py-3 border-b border-white/5">
-                  <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Code Preview</p>
-                  <div className="p-2 rounded-lg bg-black/40 border border-white/5 font-mono text-xs text-gray-300 max-h-16 overflow-y-auto">
-                    {(editableNewText || '').split('\n')[activeLine - 1] || '(empty line)'}
+                <div className="px-4 py-3 border-b border-slate-200">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5">
+                    Code preview
+                  </p>
+                  <div className="p-2 rounded-md bg-slate-50 border border-slate-200 font-mono text-xs text-slate-800 max-h-16 overflow-y-auto">
+                    {(editableNewText || '').split('\n')[activeLine - 1] ||
+                      '(empty line)'}
                   </div>
                 </div>
 
                 {/* Comment Input */}
                 <div className="p-4">
                   <textarea
-                    className="w-full h-24 p-3 rounded-xl bg-black/30 border border-purple-500/20 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
+                    className="w-full h-24 p-3 rounded-md bg-white border border-slate-300 text-sm text-slate-900 placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                     placeholder="Add your comment about this change..."
                     value={tempComment}
                     onChange={(e) => setTempComment(e.target.value)}
@@ -505,15 +623,12 @@ const DiffViewer = forwardRef(function DiffViewer(
                   />
 
                   <div className="flex items-center justify-between mt-3">
-                    <p className="text-[10px] text-gray-600">
-                      Press <kbd className="px-1 py-0.5 bg-gray-800 rounded text-gray-400 font-mono">Ctrl+Enter</kbd> to save
-                    </p>
                     <button
                       type="button"
                       onClick={handleSaveComment}
-                      className="px-4 py-2 text-xs font-medium rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white transition-all transform hover:-translate-y-0.5"
+                      className="btn-primary px-4 py-2 text-xs"
                     >
-                      Save Comment
+                      Save comment
                     </button>
                   </div>
                 </div>
@@ -525,16 +640,16 @@ const DiffViewer = forwardRef(function DiffViewer(
 
       {/* Edit Tab */}
       {activeTab === 'edit' && (
-        <div className="flex-1 flex flex-col p-4 overflow-hidden">
+        <div className="flex-1 flex flex-col p-4 overflow-hidden bg-white">
           <div className="flex-1 relative">
             <textarea
-              className="absolute inset-0 w-full h-full p-4 rounded-xl bg-black/30 border border-purple-500/20 text-gray-200 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all scrollbar-thin scrollbar-thumb-purple-500/20"
+              className="absolute inset-0 w-full h-full p-4 rounded-md bg-white border border-slate-300 text-slate-900 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 scrollbar-thin"
               value={editableNewText}
               onChange={handleNewChange}
               placeholder="Edit the NEW content here..."
             />
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+          <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
             <span>Lines: {(editableNewText || '').split('\n').length}</span>
             <span>Characters: {(editableNewText || '').length}</span>
           </div>
@@ -543,20 +658,30 @@ const DiffViewer = forwardRef(function DiffViewer(
 
       {/* Comments Tab */}
       {activeTab === 'comments' && (
-        <div className="flex-1 overflow-auto p-4 scrollbar-thin scrollbar-thumb-purple-500/20">
+        <div className="flex-1 overflow-auto p-4 bg-white scrollbar-thin scrollbar-thumb-purple-300">
           {savedComments.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="relative mb-6">
-                <div className="absolute inset-0 bg-purple-500/20 rounded-full blur-2xl" />
-                <div className="relative p-6 rounded-full bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20">
-                  <svg className="w-12 h-12 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                </div>
+              <div className="mb-4 p-4 rounded-full bg-purple-50 text-purple-600 border border-purple-100">
+                <svg
+                  className="w-10 h-10"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                  />
+                </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-300 mb-2">No Comments Yet</h3>
-              <p className="text-sm text-gray-500 max-w-md">
-                Click on line numbers in the Diff View to add comments about specific changes
+              <h3 className="text-base font-semibold text-slate-900 mb-2">
+                No comments yet
+              </h3>
+              <p className="text-sm text-slate-500 max-w-md">
+                Click on line numbers in the Diff View to add comments about
+                specific changes.
               </p>
             </div>
           ) : (
@@ -564,39 +689,52 @@ const DiffViewer = forwardRef(function DiffViewer(
               {savedComments.map((c, idx) => (
                 <div
                   key={idx}
-                  className="group relative overflow-hidden rounded-xl bg-gradient-to-r from-slate-900/80 to-purple-950/30 border border-purple-500/10 hover:border-purple-500/30 transition-all duration-200"
+                  className="group relative overflow-hidden rounded-md bg-white border border-slate-200 hover:border-purple-400 hover:bg-purple-50"
                 >
                   {/* Left accent */}
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-purple-500 to-pink-500" />
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-purple-600" />
 
                   <div className="pl-5 pr-4 py-4">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-1 text-[10px] font-bold bg-purple-500/20 text-purple-300 rounded-lg border border-purple-500/30">
+                        <span className="px-2 py-1 text-[10px] font-bold bg-purple-50 text-purple-700 rounded-md border border-purple-200">
                           Line {c.lineNumber}
                         </span>
                       </div>
                       <button
-                        onClick={() => onCommentChange && onCommentChange(c.lineNumber, '', '')}
-                        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-all"
+                        onClick={() =>
+                          onCommentChange &&
+                          onCommentChange(c.lineNumber, '', '')
+                        }
+                        className="p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50"
                         title="Delete comment"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
                         </svg>
                       </button>
                     </div>
 
                     {/* Code Preview */}
                     {c.lineContent && (
-                      <div className="mb-3 p-2 rounded-lg bg-black/30 border border-white/5 font-mono text-[11px] text-gray-400 overflow-x-auto">
+                      <div className="mb-3 p-2 rounded-md bg-slate-50 border border-slate-200 font-mono text-[11px] text-slate-800 overflow-x-auto">
                         {c.lineContent}
                       </div>
                     )}
 
                     {/* Comment */}
-                    <p className="text-sm text-gray-200">{c.comment}</p>
+                    <p className="text-sm text-slate-900">{c.comment}</p>
                   </div>
                 </div>
               ))}

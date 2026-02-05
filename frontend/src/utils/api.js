@@ -109,12 +109,21 @@ export const writeChanges = async (excelPath, changes) => {
 /**
  * Workspace management
  */
-export const createWorkspace = async (name, oldFolder = "", newFolder = "", excelPath = "") => {
+export const createWorkspace = async (
+  name,
+  oldFolder = "",
+  newFolder = "",
+  excelPath = "",
+  projectName = "",
+  environments = []
+) => {
   const res = await api.post("/workspace/create", {
     name,
+    project_name: projectName || name,
     old_folder: oldFolder,
     new_folder: newFolder,
     excel_path: excelPath,
+    environments, // array of { name, servers: [{ name, old_folder, new_folder, excel_path }] }
   });
   return res.data;
 };
@@ -134,15 +143,26 @@ export const deleteWorkspace = async (name) => {
   return res.data;
 };
 
+export const updateWorkspace = async (name, updates) => {
+  const res = await api.put(`/workspace/${name}`, updates);
+  return res.data;
+};
 
-export const uploadDiffScreenshot = async (excelPath, fileName, imageBlob, componentName = '') => {
+
+export const uploadDiffScreenshot = async (
+  excelPath,
+  fileName,
+  imageBlob,
+  componentName = '',
+  serverName = ''
+) => {
   const formData = new FormData();
   formData.append('excel_path', excelPath);
   formData.append('file_name', fileName);
   formData.append('componentName', componentName);
+  formData.append('serverName', serverName);
   formData.append('image', imageBlob, `${fileName || 'diff'}.png`);
 
-  // Do NOT set Content-Type manually – axios will set correct multipart boundaries
   const res = await axios.post(`${API_BASE_URL}/write-diff-image`, formData);
   return res.data;
 };
@@ -170,3 +190,11 @@ export async function browseSystemFile() {
     return '';
   }
 }
+
+export const scanDeltaGroups = async (rootFolder, excelPath = '') => {
+  const res = await api.post('/delta-scan', {
+    root_folder: rootFolder,
+    excel_path: excelPath || '',
+  });
+  return res.data; // { database_name, groups, excel_written, message }
+};

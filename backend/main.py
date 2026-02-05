@@ -22,14 +22,17 @@ from models.schemas import (
     UpdateExcelRequest, UpdateExcelResponse, ScanFoldersRequest, ScanFoldersResponse,
     WriteChangesRequest, WriteChangesResponse,
     CompareAndUpdateRequest,
-    WorkspaceCreateRequest, WorkspaceResponse,
+    WorkspaceCreateRequest, WorkspaceResponse,WorkspaceUpdateRequest,DeltaScanRequest,
+    DeltaScanResponse,
     FileDiff
 )
 from services.folder_compare import match_file_pairs
 from services.diff_service import compare_files, generate_diff_summary
-from services.excel_service import update_excel_file, write_changes_to_excel,add_diff_image_to_excel,sheet_name_from_component
+from services.excel_service import update_excel_file, write_changes_to_excel,add_diff_image_to_excel,sheet_name_from_component,write_delta_groups_to_excel
 from services.workspace_service import create_workspace, list_workspaces, get_workspace, update_workspace, add_comparison_to_history,delete_workspace
 from utils.file_utils import path_exists, safe_isdir, safe_read_file, normalize_path
+
+from services.delta_groups import scan_delta_groups
 
 app = FastAPI(title="Config Compare Tool API", version="1.0.0")
 
@@ -693,10 +696,17 @@ async def write_changes_endpoint(request: WriteChangesRequest):
 
 @app.post("/workspace/create", response_model=WorkspaceResponse)
 async def create_workspace_endpoint(request: WorkspaceCreateRequest):
-    """Create a new workspace."""
-    workspace = create_workspace(request.name, request.old_folder, request.new_folder, request.excel_path)
+    """Create a new workspace (project with environments and servers)."""
+    workspace = create_workspace(
+        name=request.name,
+        old_folder=request.old_folder or "",
+        new_folder=request.new_folder or "",
+        excel_path=request.excel_path or "",
+        project_name=request.project_name or request.name,
+        # Store nested models as plain dicts in metadata.json
+        environments=[env.dict() for env in request.environments],
+    )
     return WorkspaceResponse(**workspace)
-
 
 @app.get("/workspace/list")
 async def list_workspaces_endpoint():
@@ -711,6 +721,25 @@ async def get_workspace_endpoint(name: str):
     if not workspace:
         raise HTTPException(status_code=404, detail="Workspace not found")
     return WorkspaceResponse(**workspace)
+
+
+@app.put("/workspace/{name}", response_model=WorkspaceResponse)
+async def update_workspace_endpoint(name: str, request: WorkspaceUpdateRequest):
+    """Update workspace metadata (e.g., environments and servers)."""
+    existing = get_workspace(name)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    # This already returns nested dicts; no extra .dict() calls needed
+    updates = request.dict(exclude_unset=True)
+
+    ok = update_workspace(name, updates)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to update workspace")
+
+    refreshed = get_workspace(name)
+    return WorkspaceResponse(**refreshed)
+
 
 @app.delete("/workspace/{name}")
 async def delete_workspace_endpoint(name: str):
@@ -727,6 +756,7 @@ async def write_diff_image_endpoint(
     excel_path: str = Form(...),
     file_name: str = Form(...),
     component_name: str = Form("", alias="componentName"),
+    server_name: str = Form("", alias="serverName"),
     image: UploadFile = File(...)
 ):
     """Receive a screenshot and add it to Excel (Diff Screenshots sheet).
@@ -773,6 +803,7 @@ async def write_diff_image_endpoint(
             component_name=component_name,
             image_file_path=img_path,
             sheet_name=sheet_name_from_component(component_name),
+            server_name=server_name,
         )
     finally:
         # Cleanup temp file
@@ -835,3 +866,57 @@ def browse_file_dialog():
     except Exception as e:
         print(f"Error opening file dialog: {e}")
         return {"path": ""}
+    
+
+@app.post("/delta-scan", response_model=DeltaScanResponse)
+def delta_scan_endpoint(request: DeltaScanRequest):
+    """
+    Scan a database folder with DeltaDrop structure and optionally
+    write the result to Excel.
+
+    Expects:
+      root_folder -> path to DatabaseName folder
+      excel_path  -> optional Excel path to write matrix layout
+    """
+    root = request.root_folder
+    excel_path = request.excel_path or ""
+
+    if not path_exists(root) or not safe_isdir(root):
+        raise HTTPException(status_code=404, detail=f"Root folder not found: {root}")
+
+    data = scan_delta_groups(root)
+    db_name = data.get("database_name") or ""
+    groups = data.get("groups") or []
+
+    if not db_name or not groups:
+        return DeltaScanResponse(
+            database_name=db_name,
+            groups=groups,
+            excel_written=False,
+            message="No delta groups or SQL files found under DeltaDrop.",
+        )
+
+    excel_written = False
+    msg = "Scan completed (Excel not written)."
+
+    if excel_path:
+        success, message, _ = write_delta_groups_to_excel(
+            excel_path, db_name, groups, sheet_name=db_name
+        )
+        excel_written = success
+        msg = message
+
+        if not success:
+            return DeltaScanResponse(
+                database_name=db_name,
+                groups=groups,
+                excel_written=False,
+                message=message,
+            )
+
+    return DeltaScanResponse(
+        database_name=db_name,
+        groups=groups,
+        excel_written=excel_written,
+        message=msg,
+    )
