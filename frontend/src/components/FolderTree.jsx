@@ -1,4 +1,15 @@
 // frontend/src/components/FolderTree.jsx
+/**
+ * Hierarchical folder/file tree component for displaying comparison results.
+ * 
+ * Features:
+ * - Expandable folder structure
+ * - Visual status indicators (modified, new, deleted)
+ * - File selection and navigation
+ * - Comment badge display
+ * - Missing file highlighting
+ */
+
 import React, { useState } from 'react';
 
 // File Icon Component

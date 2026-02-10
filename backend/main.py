@@ -1,5 +1,12 @@
 """
-FastAPI main application with all endpoints for configuration comparison tool.
+FastAPI main application with all REST endpoints for configuration comparison tool.
+
+Provides endpoints for:
+- File and folder comparison (diff generation, semantic parsing)
+- Excel workbook updates with comparison results
+- Workspace management (CRUD operations)
+- Browser-based file/folder selection dialogs
+- Database delta migration scanning
 """
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,9 +41,10 @@ from utils.file_utils import path_exists, safe_isdir, safe_read_file, normalize_
 
 from services.delta_groups import scan_delta_groups
 
+# FastAPI application instance
 app = FastAPI(title="Config Compare Tool API", version="1.0.0")
 
-# Enable CORS for frontend
+# Enable CORS for frontend development (localhost:3000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -48,7 +56,7 @@ app.add_middleware(
 
 @app.get("/")
 def root():
-    """Health check endpoint."""
+    """Health check endpoint - verifies API is running."""
     return {"status": "ok", "message": "Config Compare Tool API"}
 
 
@@ -61,11 +69,19 @@ from typing import Any
 @app.post("/compare", response_model=dict)
 async def compare_files_endpoint(request: Request, old_path: str = Form(None), new_path: str = Form(None), old_file: UploadFile = File(None), new_file: UploadFile = File(None)):
     """
-    Compare two individual files and return diff.
-    Supports:
-      - JSON body with `old_path` and `new_path`
-      - form-data with `old_path`/`new_path` fields
-      - multipart file upload with `old_file` and `new_file`
+    Compare two files and return unified and semantic diffs.
+    
+    Supports three input methods:
+    1. File uploads: multipart form data with old_file/new_file
+    2. File paths: JSON or form fields with old_path/new_path (for server-side files)
+    3. Mixed: Can specify file paths for server files
+    
+    Returns:
+    - Unified diff (standard format)
+    - Parsed diff lines with line numbers
+    - Semantic diff (structured JSON/XML changes)
+    - Raw file contents (for UI side-by-side view)
+    - Truncation indicator for large files (>2MB)
     """
     content_type = request.headers.get("content-type", "")
 
@@ -141,37 +157,20 @@ async def compare_files_endpoint(request: Request, old_path: str = Form(None), n
         raise HTTPException(status_code=500, detail="Error comparing files")
 
     # Read raw file contents to support side-by-side viewer in frontend
-    MAX_BYTES = 2 * 1024 * 1024  # 2MB limit per file to avoid memory blowups
     truncated = False
-    old_text = None
-    new_text = None
     try:
-        if os.path.getsize(old_path_val) <= MAX_BYTES:
-            old_text = "".join(safe_read_file(old_path_val) or [])
-        else:
-            # return a truncated preview
-            truncated = True
-            import itertools
-            with open(old_path_val, 'r', encoding='utf-8', errors='ignore') as fo:
-                old_text = ''.join(list(itertools.islice(fo, 200)))
-                old_text += '\n...[truncated]'
+        old_text = "".join(safe_read_file(old_path_val) or [])
     except Exception:
         old_text = None
+
     try:
-        if os.path.getsize(new_path_val) <= MAX_BYTES:
-            new_text = "".join(safe_read_file(new_path_val) or [])
-        else:
-            truncated = True
-            import itertools
-            with open(new_path_val, 'r', encoding='utf-8', errors='ignore') as fn:
-                new_text = ''.join(list(itertools.islice(fn, 200)))
-                new_text += '\n...[truncated]'
+        new_text = "".join(safe_read_file(new_path_val) or [])
     except Exception:
         new_text = None
 
-    # If files too big, avoid returning full unified diff to save memory
-    unified_diff = file_diff.unified_diff if not truncated else []
-    diff_lines = [line.dict() for line in file_diff.diff_lines] if not truncated else []
+    # Always return full unified diff and diff lines
+    unified_diff = file_diff.unified_diff
+    diff_lines = [line.dict() for line in file_diff.diff_lines]
 
     return {
         "file_name": file_diff.file_name,
@@ -189,9 +188,14 @@ async def compare_files_endpoint(request: Request, old_path: str = Form(None), n
 @app.post("/scan-folders", response_model=ScanFoldersResponse)
 async def scan_folders_endpoint(request: Request):
     """
-    Scan two folders and return matched file pairs.
-
-    Accepts JSON body or form-data (old_folder/new_folder).
+    Scan two folders and return matched file pairs and missing files.
+    Performs initial folder analysis without generating full diffs.
+    
+    Returns file pairs matched by:
+    - Component (folder basename)
+    - Filename
+    
+    Also identifies files that exist in only one folder.
     """
     content_type = request.headers.get("content-type", "")
     old_folder = None
@@ -234,7 +238,16 @@ async def scan_folders_endpoint(request: Request):
 @app.post("/compare-folders", response_model=CompareFoldersResponse)
 async def compare_folders_endpoint(request: CompareFoldersRequest):
     """
-    Compare two folders recursively and return a nested folder tree (mirroring OLD folder) with lightweight file summaries.
+    Compare two folder hierarchies and return comparison results.
+    
+    Performs:
+    1. Folder tree mirroring (nested structure of old folder)
+    2. File matching by component and filename
+    3. Lightweight file comparison (metadata only, no full diffs)
+    4. Missing file identification
+    
+    Returns nested folder tree with file summaries to avoid memory overload
+    when comparing large folder structures.
     """
     # Validate workspace
     if not get_workspace(request.workspace_id):
@@ -368,72 +381,66 @@ async def compare_files_upload(
     This is used by the WinMerge-style single-file comparison UI.
     """
     try:
-        old_bytes = await old_file.read()
-        new_bytes = await new_file.read()
+      old_bytes = await old_file.read()
+      new_bytes = await new_file.read()
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Error reading uploaded files: {exc}")
+      raise HTTPException(status_code=400, detail=f"Error reading uploaded files: {exc}")
 
-    MAX_BYTES = 2 * 1024 * 1024  # 2MB
-    truncated = False
-    if len(old_bytes) > MAX_BYTES or len(new_bytes) > MAX_BYTES:
-        # avoid building large diffs for very large uploads
-        truncated = True
-        # read first ~200 lines as preview
-        old_preview = old_bytes.decode('utf-8', errors='ignore').splitlines()[:200]
-        new_preview = new_bytes.decode('utf-8', errors='ignore').splitlines()[:200]
-        unified_diff = []
-        has_changes = True
-        summary = "Preview truncated due to large file"
-        semantic = None
+    # Decode full contents
+    old_text = old_bytes.decode("utf-8", errors="ignore").splitlines(keepends=True)
+    new_text = new_bytes.decode("utf-8", errors="ignore").splitlines(keepends=True)
+
+    # Full unified diff
+    unified_diff = list(
+        difflib.unified_diff(
+            old_text,
+            new_text,
+            fromfile=old_file.filename or "old_file",
+            tofile=new_file.filename or "new_file",
+            lineterm="",
+        )
+    )
+
+    # Determine if there are actual content changes
+    has_changes = any(
+        line.startswith(("+", "-"))
+        and not line.startswith(("+++", "---"))
+        for line in unified_diff
+    )
+
+    # Basic summary (counts of added/removed lines)
+    added = sum(
+        1
+        for line in unified_diff
+        if line.startswith("+") and not line.startswith("+++")
+    )
+    removed = sum(
+        1
+        for line in unified_diff
+        if line.startswith("-") and not line.startswith("---")
+    )
+
+    if not has_changes:
+        summary = "No changes detected"
     else:
-        old_text = old_bytes.decode("utf-8", errors="ignore").splitlines(keepends=True)
-        new_text = new_bytes.decode("utf-8", errors="ignore").splitlines(keepends=True)
+        parts = []
+        if added:
+            parts.append(f"{added} line(s) added")
+        if removed:
+            parts.append(f"{removed} line(s) removed")
+        summary = "; ".join(parts) if parts else "Changes detected"
 
-        unified_diff = list(
-            difflib.unified_diff(
-                old_text,
-                new_text,
-                fromfile=old_file.filename or "old_file",
-                tofile=new_file.filename or "new_file",
-                lineterm="",
-            )
+    # Semantic diff from texts
+    try:
+        from services.semantic_diff import semantic_compare_texts
+        semantic = semantic_compare_texts(
+            "".join(old_text),
+            "".join(new_text),
+            old_file.filename or "old",
+            new_file.filename or "new",
         )
-
-        # Determine if there are actual content changes
-        has_changes = any(
-            line.startswith(("+", "-"))
-            and not line.startswith(("+++", "---"))
-            for line in unified_diff
-        )
-
-        # Basic summary (counts of added/removed lines)
-        added = sum(
-            1
-            for line in unified_diff
-            if line.startswith("+") and not line.startswith("+++")
-        )
-        removed = sum(
-            1
-            for line in unified_diff
-            if line.startswith("-") and not line.startswith("---")
-        )
-
-        if not has_changes:
-            summary = "No changes detected"
-        else:
-            parts = []
-            if added:
-                parts.append(f"{added} line(s) added")
-            if removed:
-                parts.append(f"{removed} line(s) removed")
-            summary = "; ".join(parts) if parts else "Changes detected"
-
-        # Semantic diff from texts
-        try:
-            from services.semantic_diff import semantic_compare_texts
-            semantic = semantic_compare_texts("".join(old_text), "".join(new_text), old_file.filename or "old", new_file.filename or "new")
-        except Exception:
-            semantic = None
+    except Exception:
+        semantic = None
 
     return {
         "file_name_old": old_file.filename,
@@ -442,42 +449,30 @@ async def compare_files_upload(
         "summary": summary,
         "unified_diff": unified_diff,
         "semantic_diff": semantic,
-        "old_text": ("\n".join(old_preview) + "\n...[truncated]") if truncated else "".join(old_text),
-        "new_text": ("\n".join(new_preview) + "\n...[truncated]") if truncated else "".join(new_text),
-        "truncated": truncated
+        "old_text": "".join(old_text),
+        "new_text": "".join(new_text),
+        "truncated": False,
     }
-
-
-@app.post("/update-excel", response_model=UpdateExcelResponse)
-def update_excel_endpoint(request: UpdateExcelRequest):
-    """
-    Update Excel file with comparison results.
-    
-    Args:
-        request: UpdateExcelRequest with excel_path and file_diffs
-        
-    Returns:
-        UpdateExcelResponse with success status and message
-    """
-    success, message, updated_rows = update_excel_file(
-        request.excel_path,
-        request.file_diffs,
-        getattr(request, 'comments', None)
-    )
-    
-    if not success:
-        raise HTTPException(status_code=400, detail=message)
-    
-    return UpdateExcelResponse(
-        success=True,
-        message=message,
-        updated_rows=updated_rows
-    )
-
 
 @app.post("/compare-and-update")
 def compare_and_update_endpoint(request: CompareAndUpdateRequest):
-    """Combined endpoint: Compare folders and optionally update Excel in one operation. Accepts optional 'missing_validations' in request to indicate reviewed missing files."""
+    """
+    Combined endpoint: Compare folders and optionally update Excel in one operation.
+    Primary endpoint used by the UI for the standard comparison workflow.
+    
+    Workflow:
+    1. Scans both folders and matches files
+    2. Optionally validates missing files based on user confirmations
+    3. Generates full diffs for changed files
+    4. Updates Excel with results if path provided and validations satisfied
+    5. Returns comparison results and Excel operation status
+    
+    Args:
+        request: CompareAndUpdateRequest with folders, Excel path, validations, comments
+        
+    Returns:
+        Combined dict with comparison results and Excel update status
+    """
     # Validate workspace
     if not get_workspace(request.workspace_id):
         raise HTTPException(status_code=400, detail="Invalid workspace")
@@ -485,10 +480,20 @@ def compare_and_update_endpoint(request: CompareAndUpdateRequest):
 
 @app.post("/save-edited-file")
 async def save_edited_file_endpoint(payload: dict):
-    """Save user-edited content back to disk for files in NEW folders.
-
-    Payload: { file_path: str, updated_content: str }
-    Performs light syntax validation for JSON/YAML files before writing.
+    """
+    Save user-edited file content back to the file system.
+    Performs light syntax validation for JSON and YAML files before writing.
+    
+    Workflow:
+    1. Validates syntax based on file extension (JSON/YAML)
+    2. Creates directories if necessary
+    3. Writes updated content to disk
+    
+    Args:
+        payload: Dict with file_path and updated_content
+        
+    Returns:
+        Success status with file path and modified flag
     """
     file_path = payload.get('file_path')
     updated_content = payload.get('updated_content')
@@ -696,7 +701,19 @@ async def write_changes_endpoint(request: WriteChangesRequest):
 
 @app.post("/workspace/create", response_model=WorkspaceResponse)
 async def create_workspace_endpoint(request: WorkspaceCreateRequest):
-    """Create a new workspace (project with environments and servers)."""
+    """
+    Create a new workspace for managing comparison projects.
+    
+    Supports two configuration models:
+    - Legacy: single old/new folder pair with Excel path
+    - Hierarchical: multiple environments, each with multiple servers
+    
+    Args:
+        request: WorkspaceCreateRequest with name, project details, and optional configuration
+        
+    Returns:
+        WorkspaceResponse with created workspace metadata
+    """
     workspace = create_workspace(
         name=request.name,
         old_folder=request.old_folder or "",
@@ -710,13 +727,13 @@ async def create_workspace_endpoint(request: WorkspaceCreateRequest):
 
 @app.get("/workspace/list")
 async def list_workspaces_endpoint():
-    """List all workspaces."""
+    """List all available workspaces."""
     return {"workspaces": list_workspaces()}
 
 
 @app.get("/workspace/{name}", response_model=WorkspaceResponse)
 async def get_workspace_endpoint(name: str):
-    """Get workspace by name."""
+    """Retrieve complete metadata for a specific workspace."""
     workspace = get_workspace(name)
     if not workspace:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -725,7 +742,10 @@ async def get_workspace_endpoint(name: str):
 
 @app.put("/workspace/{name}", response_model=WorkspaceResponse)
 async def update_workspace_endpoint(name: str, request: WorkspaceUpdateRequest):
-    """Update workspace metadata (e.g., environments and servers)."""
+    """
+    Update workspace configuration (environments, servers, display name, etc.).
+    Performs partial update - only specified fields are changed.
+    """
     existing = get_workspace(name)
     if not existing:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -743,7 +763,7 @@ async def update_workspace_endpoint(name: str, request: WorkspaceUpdateRequest):
 
 @app.delete("/workspace/{name}")
 async def delete_workspace_endpoint(name: str):
-    """Delete a workspace."""
+    """Delete a workspace and all associated metadata/history."""
     success = delete_workspace(name)
     if not success:
         raise HTTPException(status_code=404, detail="Workspace not found")
@@ -759,10 +779,12 @@ async def write_diff_image_endpoint(
     server_name: str = Form("", alias="serverName"),
     image: UploadFile = File(...)
 ):
-    """Receive a screenshot and add it to Excel (Diff Screenshots sheet).
+    """
+    Receive a diff screenshot and add it to Excel workbook.
+    Creates a sheet per component and embeds images with metadata.
     
-    Uses the same component name logic as the Reviewed Changes sheet.
-    Accepts componentName from frontend (camelCase, matching Reviewed Changes format).
+    Accepts componentName in camelCase (matching frontend conventions).
+    Validates image format before embedding.
     """
     import uuid
 
@@ -818,10 +840,12 @@ async def write_diff_image_endpoint(
     return {"success": True, "message": message}
 
 
-
-# 2️⃣ PASTE THIS FUNCTION ANYWHERE BEFORE THE END OF THE FILE
 @app.get("/browse")
 def browse_folder_dialog():
+    """
+    Open a native system folder selection dialog.
+    Returns the selected folder path.
+    """
     try:
         # Create a hidden Tkinter root window
         root = tk.Tk()
@@ -847,7 +871,8 @@ def browse_folder_dialog():
 @app.get("/browse-file")
 def browse_file_dialog():
     """
-    Opens a native system dialog to select a single file (specifically Excel).
+    Open a native system file selection dialog (Excel files).
+    Returns the selected file path.
     """
     try:
         root = tk.Tk()
@@ -871,12 +896,23 @@ def browse_file_dialog():
 @app.post("/delta-scan", response_model=DeltaScanResponse)
 def delta_scan_endpoint(request: DeltaScanRequest):
     """
-    Scan a database folder with DeltaDrop structure and optionally
-    write the result to Excel.
-
-    Expects:
-      root_folder -> path to DatabaseName folder
-      excel_path  -> optional Excel path to write matrix layout
+    Scan a database folder structure for delta migration scripts.
+    
+    Expected structure:
+        DatabaseName/
+            BaseDrop/      
+            DeltaDrop/     
+                TableScripts/
+                StoredProcedures/
+                ...
+    
+    Extracts delta groups and optionally writes matrix layout to Excel.
+    
+    Args:
+        request: DeltaScanRequest with database root and optional Excel path
+        
+    Returns:
+        DeltaScanResponse with delta groups and Excel operation status
     """
     root = request.root_folder
     excel_path = request.excel_path or ""

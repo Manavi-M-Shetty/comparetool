@@ -1,4 +1,20 @@
 // frontend/src/context/ComparisonContext.jsx
+/**
+ * Global comparison application state management.
+ * 
+ * This context manages:
+ * - File paths for old/new folders and Excel workbook
+ * - Comparison results (folder structure and diffs)
+ * - User interactions: comments, validations, edited files
+ * - Workspace and environment/server selection
+ * - Session persistence (localStorage-backed)
+ * 
+ * Session persistence is per-workspace-per-environment-per-server:
+ * - Saves state to localStorage when values change
+ * - Restores state when workspace/env/server selection changes
+ * - Automatically saves every 30 seconds and on browser unload
+ */
+
 import React, {
   createContext,
   useContext,
@@ -18,12 +34,16 @@ import {
   updateWorkspace as apiUpdateWorkspace,
 } from '../utils/api';
 
+// localStorage key prefix for persisting session data
 const SESSION_PREFIX = 'compare_session_v1_';
 
 const ComparisonContext = createContext(null);
 export const useComparison = () => useContext(ComparisonContext);
 
-// 🔑 session per workspace + env + server
+/**
+ * Generate unique localStorage key for a workspace/environment/server combination.
+ * Allows independent session state for each configuration.
+ */
 function getSessionKey(workspaceName, envName, serverName) {
   const ws = workspaceName || 'defaultWs';
   const env = envName || 'defaultEnv';

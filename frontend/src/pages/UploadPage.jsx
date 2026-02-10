@@ -1,4 +1,16 @@
 // frontend/src/pages/UploadPage.jsx
+/**
+ * Upload and configuration page for initiating folder comparison.
+ * 
+ * Features:
+ * - Browse and select old/new configuration folders
+ * - Browse and select Excel workbook for results
+ * - Environment and server selection
+ * - Folder path validation
+ * - Initiate comparison and navigate to results page
+ * - Status messages and error handling
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useComparison } from '../context/ComparisonContext';

@@ -1,6 +1,7 @@
 """
-Service for comparing folders and matching components/files.
-Matches components by subfolder name and config files by filename.
+Service for comparing folder hierarchies and matching configuration files.
+Recursively scans folders, matches components by folder name, and files by filename.
+Only processes files with allowed configuration extensions and filters out binary files.
 """
 import os
 import sys
@@ -14,17 +15,36 @@ from utils.file_utils import (
 )
 
 
+# Supported configuration file extensions
 ALLOWED_EXTENSIONS = {'.json', '.xml', '.yml', '.yaml', '.ini', '.cfg', '.conf', '.txt', '.env', '.properties', '.csv', '.xlsx','.config'}
 
 
 def is_config_file(path: str) -> bool:
-    """Return True if the file has an allowed config extension."""
+    """
+    Check if a file has an allowed configuration extension.
+    
+    Args:
+        path: File path or filename
+        
+    Returns:
+        True if file extension is in ALLOWED_EXTENSIONS
+    """
     _, ext = os.path.splitext(path)
     return ext.lower() in ALLOWED_EXTENSIONS
 
 
 def is_probably_binary(path: str, sniff_bytes: int = 4096) -> bool:
-    """Heuristic: read first chunk and check for NUL bytes."""
+    """
+    Detect if a file is likely binary by checking for NUL bytes.
+    This heuristic helps avoid processing binary files as text.
+    
+    Args:
+        path: File path to check
+        sniff_bytes: Number of bytes to read for detection (default 4096)
+        
+    Returns:
+        True if binary content is detected or file cannot be read
+    """
     try:
         with open(path, 'rb') as f:
             chunk = f.read(sniff_bytes)
@@ -35,10 +55,26 @@ def is_probably_binary(path: str, sniff_bytes: int = 4096) -> bool:
 
 def build_folder_tree(root: str) -> dict:
     """
-    Build a nested folder tree dict that mirrors the directory hierarchy of `root`.
-    Each directory node is: {name, path, subfolders: [...], files: [{file_name, path}]}
-    Preserves the order as returned by the filesystem (do not sort so caller's folder order is preserved).
-    Only includes files with allowed extensions and skips probable binary files.
+    Build a nested folder tree structure mirroring the directory hierarchy.
+    Recursively processes all subdirectories while filtering config files.
+    
+    Includes:
+    - Folders with allowed extension files
+    - Config files (JSON, XML, YAML, INI, etc.)
+    Excludes:
+    - Binary files (detected by NUL byte heuristic)
+    
+    Args:
+        root: Root folder path
+        
+    Returns:
+        Nested dictionary with structure:
+        {
+            "name": "folder_name",
+            "path": "normalized_path",
+            "subfolders": [...],
+            "files": [{"file_name": "x.json", "path": "..."}]
+        }
     """
     def build_node(current_path: str):
         node = {
@@ -53,13 +89,13 @@ def build_folder_tree(root: str) -> dict:
         except Exception:
             entries = []
 
-        # Preserve the filesystem order by iterating entries as-is
+        # Process all entries preserving filesystem order
         for entry in entries:
             abs_path = os.path.join(current_path, entry)
             if safe_isdir(abs_path):
                 node["subfolders"].append(build_node(abs_path))
             else:
-                # Only include allowed config files and skip binary
+                # Include only allowed config files, excluding binaries
                 if is_config_file(entry) and not is_probably_binary(abs_path):
                     node["files"].append({"file_name": entry, "path": normalize_path(abs_path)})
 
@@ -73,8 +109,15 @@ def build_folder_tree(root: str) -> dict:
 
 def scan_configs(root: str) -> Dict[str, List[str]]:
     """
-    Recursively scan root and return mapping of component (directory basename) to list of config file paths.
-    Only includes allowed config extensions and skips binary files.
+    Scan folder recursively and map component names to config file paths.
+    Each component is identified by its directory basename.
+    Multiple files in the same component are aggregated into a list.
+    
+    Args:
+        root: Root folder path
+        
+    Returns:
+        Dictionary mapping component name -> list of config file paths
     """
     components: Dict[str, List[str]] = {}
     if not path_exists(root) or not safe_isdir(root):
@@ -99,16 +142,22 @@ def match_file_pairs(
     new_root: str
 ) -> Tuple[List[Dict], List[Dict], List[Dict]]:
     """
-    Match components and config files between old and new folders.
-
+    Match config files between old and new folders by component and filename.
+    
+    Matching logic:
+    1. Components are identified by folder basename (e.g., "Server1", "Service2")
+    2. Files within each component are matched by filename
+    3. Missing files (existing in only one folder) are tracked separately
+    
     Args:
-        old_root: Path to old folder
-        new_root: Path to new folder
-
+        old_root: Path to baseline/original folder
+        new_root: Path to changed/new folder
+        
     Returns:
-        Tuple of (matched_pairs, old_only_files, new_only_files)
-        matched_pairs: List of dicts with component_name, config_file_name, old_path, new_path
-        old_only_files/new_only_files: List of per-file dicts with file_path, component_name, missing_side, validated
+        Tuple of three lists:
+        - matched_pairs: [{"component_name", "config_file_name", "old_path", "new_path"}]
+        - old_only_files: [{"file_path", "component_name", "missing_side": "NEW", "validated"}]
+        - new_only_files: [{"file_path", "component_name", "missing_side": "OLD", "validated"}]
     """
     old_components = scan_configs(old_root)
     new_components = scan_configs(new_root)
@@ -117,39 +166,40 @@ def match_file_pairs(
     old_only_files = []
     new_only_files = []
 
-    # Find all unique component names
+    # Process all unique components found in either folder
     all_components = set(old_components.keys()) | set(new_components.keys())
 
     for comp_name in all_components:
         old_files = old_components.get(comp_name, [])
         new_files = new_components.get(comp_name, [])
 
-        # If component exists only in NEW, all its files are missing on the OLD side
+        # Component exists only in NEW: all files are new
         if not old_files and new_files:
             for f in new_files:
                 new_only_files.append({
                     "file_path": f,
                     "component_name": comp_name,
-                    "missing_side": "OLD",  # file exists in NEW, missing in OLD
+                    "missing_side": "OLD",
                     "validated": False
                 })
             continue
-        # If component exists only in OLD, all its files are missing on the NEW side
+        
+        # Component exists only in OLD: all files are deleted
         elif old_files and not new_files:
             for f in old_files:
                 old_only_files.append({
                     "file_path": f,
                     "component_name": comp_name,
-                    "missing_side": "NEW",  # file exists in OLD, missing in NEW
+                    "missing_side": "NEW",
                     "validated": False
                 })
             continue
 
-        # Match files by filename within each component
+        # Component exists in both: match files by filename
         old_file_map = {get_filename(f): f for f in old_files}
         new_file_map = {get_filename(f): f for f in new_files}
 
-        # Find matched files
+        # Files present in both old and new
         matched_filenames = set(old_file_map.keys()) & set(new_file_map.keys())
 
         for filename in matched_filenames:
@@ -160,7 +210,7 @@ def match_file_pairs(
                 "new_path": new_file_map[filename]
             })
 
-        # Files present in OLD but not in NEW for this component
+        # Files present in old but not in new for this component
         for filename, fpath in old_file_map.items():
             if filename not in matched_filenames:
                 old_only_files.append({
@@ -170,7 +220,7 @@ def match_file_pairs(
                     "validated": False
                 })
 
-        # Files present in NEW but not in OLD for this component
+        # Files present in new but not in old for this component
         for filename, fpath in new_file_map.items():
             if filename not in matched_filenames:
                 new_only_files.append({

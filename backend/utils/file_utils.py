@@ -1,6 +1,7 @@
 """
 File utilities for safe file operations with error handling.
-Handles Windows paths, permission errors, and encoding issues.
+Provides robust wrappers around OS file operations that gracefully handle
+Windows paths, permission errors, encoding issues, and missing files.
 """
 import os
 from pathlib import Path
@@ -9,14 +10,14 @@ from typing import List, Optional, Tuple
 
 def safe_read_file(file_path: str) -> Optional[List[str]]:
     """
-    Safely read a file and return lines.
-    Returns None if file cannot be read.
+    Safely read a file and return its contents as lines.
+    Handles encoding errors gracefully and catches OS-level exceptions.
     
     Args:
-        file_path: Path to the file
+        file_path: Path to the file to read
         
     Returns:
-        List of lines or None if error
+        List of file lines, or None if file cannot be read
     """
     try:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -28,13 +29,13 @@ def safe_read_file(file_path: str) -> Optional[List[str]]:
 
 def safe_listdir(path: str) -> List[str]:
     """
-    Safely list directory contents, skipping unreadable items.
+    Safely list directory contents, filtering out inaccessible items.
     
     Args:
-        path: Directory path
+        path: Directory path to list
         
     Returns:
-        List of directory entries
+        List of accessible directory entries, or empty list on error
     """
     try:
         return [item for item in os.listdir(path) 
@@ -45,13 +46,13 @@ def safe_listdir(path: str) -> List[str]:
 
 def safe_isdir(path: str) -> bool:
     """
-    Safely check if path is a directory.
+    Safely check whether a path points to a directory.
     
     Args:
         path: Path to check
         
     Returns:
-        True if directory, False otherwise
+        True if path is a directory, False otherwise or on error
     """
     try:
         return os.path.isdir(path)
@@ -61,39 +62,40 @@ def safe_isdir(path: str) -> bool:
 
 def get_filename(file_path: str) -> str:
     """
-    Extract filename from full path.
+    Extract the filename component from a full file path.
     
     Args:
-        file_path: Full file path
+        file_path: Full path to file
         
     Returns:
-        Filename only
+        Filename portion only (basename)
     """
     return os.path.basename(file_path)
 
 
 def normalize_path(path: str) -> str:
     """
-    Normalize Windows path separators.
+    Normalize path separators for the current OS.
+    Converts forward slashes to backslashes on Windows.
     
     Args:
-        path: Path string
+        path: Path string to normalize
         
     Returns:
-        Normalized path
+        Normalized path with OS-appropriate separators
     """
     return os.path.normpath(path)
 
 
 def path_exists(path: str) -> bool:
     """
-    Safely check if path exists.
+    Safely check whether a path exists without raising exceptions.
     
     Args:
         path: Path to check
         
     Returns:
-        True if exists, False otherwise
+        True if path exists and is accessible, False otherwise
     """
     try:
         return os.path.exists(path)
@@ -103,18 +105,18 @@ def path_exists(path: str) -> bool:
 
 def get_component_name(file_path: str) -> str:
     """
-    Extract component name from file path based on folder structure.
+    Extract component name from file path based on standard folder structure.
     
-    Rules:
-    - If path contains /binaries/ -> componentName = first folder under binaries
-    - If path contains /configs/ -> componentName = first folder under configs
-    - Otherwise -> 'unknown'
+    Logic:
+    - If path contains /binaries/ → returns first folder under binaries
+    - If path contains /configs/ → returns first folder under configs
+    - Otherwise → returns 'unknown'
     
     Args:
         file_path: Normalized file path
         
     Returns:
-        Component name
+        Component name string
     """
     normalized_path = normalize_path(file_path).replace('\\', '/')
     

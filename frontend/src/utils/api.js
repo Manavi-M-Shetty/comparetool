@@ -1,5 +1,11 @@
 import axios from "axios";
 
+/**
+ * API client module for backend communication.
+ * Uses axios with relative base URL for Vite proxy forwarding.
+ * All requests go through /api/* which Vite proxies to the backend.
+ */
+
 // Use relative base so Vite proxy can route `/api/*` -> backend (avoids CORS and mixed-port confusion)
 const API_BASE_URL = "/api";
 
@@ -11,7 +17,8 @@ const api = axios.create({
 });
 
 /**
- * Compare two uploaded files using form-data.
+ * Compare two uploaded files using multipart form data.
+ * Handles file uploads directly without file system paths.
  */
 export const compareFilesUpload = async (oldFile, newFile) => {
   const formData = new FormData();
@@ -28,7 +35,8 @@ export const compareFilesUpload = async (oldFile, newFile) => {
 };
 
 /**
- * Scan two folders and return matched file pairs
+ * Scan two folders for config files and perform initial matching.
+ * Returns matched pairs and files that exist in only one folder.
  */
 export const scanFolders = async (oldFolder, newFolder) => {
   const res = await api.post("/scan-folders", {
@@ -39,7 +47,8 @@ export const scanFolders = async (oldFolder, newFolder) => {
 };
 
 /**
- * Compare two folders via proxy '/api/*' to backend
+ * Compare two folders recursively.
+ * Returns nested folder tree and lightweight summaries for all files.
  */
 export const compareFolders = async (oldFolder, newFolder, workspaceId) => {
   const res = await api.post("/compare-folders", {
@@ -51,7 +60,8 @@ export const compareFolders = async (oldFolder, newFolder, workspaceId) => {
 };
 
 /**
- * Compare folders and update excel via proxy
+ * Compare folders and optionally update Excel in a single operation.
+ * Used by UI for combined compare + Excel update workflow.
  */
 export const compareAndUpdate = async (oldFolder, newFolder, excelPath, missingValidations = [], comments = {}, workspaceId) => {
   const res = await api.post("/compare-and-update", {
@@ -65,15 +75,18 @@ export const compareAndUpdate = async (oldFolder, newFolder, excelPath, missingV
   return res.data;
 };
 
+/**
+ * Save user-edited file content back to disk.
+ * Performs light syntax validation for JSON/YAML files.
+ */
 export const saveEditedFile = async (payload) => {
   const res = await api.post("/save-edited-file", payload);
   return res.data;
 };
 
-
-
 /**
- * Update Excel file with comparison results
+ * Update Excel file with comparison diff results.
+ * Adds diff data to new sheets or existing workbook.
  */
 export const updateExcel = async (excelPath, fileDiffs) => {
   const res = await api.post("/update-excel", {
@@ -83,9 +96,9 @@ export const updateExcel = async (excelPath, fileDiffs) => {
   return res.data;
 };
 
-
 /**
- * Compare two files by path on the backend (returns unified diff, semantic diff, and raw texts)
+ * Compare two files by path on the backend.
+ * Returns unified diff, semantic diff, and file contents.
  */
 export const compareFilePaths = async (oldPath, newPath) => {
   const res = await api.post("/compare", {
@@ -96,7 +109,8 @@ export const compareFilePaths = async (oldPath, newPath) => {
 };
 
 /**
- * Write reviewed changes to Excel
+ * Write reviewed/approved changes to Excel workbook.
+ * Persists user decisions and comments.
  */
 export const writeChanges = async (excelPath, changes) => {
   const res = await api.post("/write-changes", {
@@ -106,8 +120,11 @@ export const writeChanges = async (excelPath, changes) => {
   return res.data;
 };
 
+// ===== Workspace Management API Calls =====
+
 /**
- * Workspace management
+ * Create a new workspace with configuration.
+ * Supports both legacy single-folder and new hierarchical environment/server model.
  */
 export const createWorkspace = async (
   name,
@@ -123,26 +140,39 @@ export const createWorkspace = async (
     old_folder: oldFolder,
     new_folder: newFolder,
     excel_path: excelPath,
-    environments, // array of { name, servers: [{ name, old_folder, new_folder, excel_path }] }
+    environments,
   });
   return res.data;
 };
 
+/**
+ * List all available workspaces.
+ */
 export const listWorkspaces = async () => {
   const res = await api.get("/workspace/list");
   return res.data.workspaces;
 };
 
+/**
+ * Retrieve complete metadata for a workspace.
+ */
 export const getWorkspace = async (name) => {
   const res = await api.get(`/workspace/${name}`);
   return res.data;
 };
 
+/**
+ * Delete a workspace and all associated metadata.
+ */
 export const deleteWorkspace = async (name) => {
   const res = await api.delete(`/workspace/${name}`);
   return res.data;
 };
 
+/**
+ * Update workspace configuration (partial update).
+ * Can update environments, servers, or display name.
+ */
 export const updateWorkspace = async (name, updates) => {
   const res = await api.put(`/workspace/${name}`, updates);
   return res.data;

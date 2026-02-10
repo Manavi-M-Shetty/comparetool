@@ -1,216 +1,212 @@
 """
 Pydantic schemas for API request/response models.
+Defines all request/response data models used by FastAPI endpoints
+for configuration file comparison, Excel operations, and workspace management.
 """
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
 class CompareRequest(BaseModel):
-    """Request model for comparing two files."""
-    old_path: str
-    new_path: str
+    """Request to compare two individual config files by path."""
+    old_path: str  # Path to the original/baseline file
+    new_path: str  # Path to the changed/new file
 
 
 class FilePair(BaseModel):
-    """Model for a matched file pair."""
-    component_name: str
-    config_file_name: str
-    old_path: str
-    new_path: str
+    """Model representing a matched file pair from folder comparison."""
+    component_name: str       # Component folder name (e.g., subdirectory name)
+    config_file_name: str     # The filename matched between old and new
+    old_path: str             # Full path to file in old/baseline folder
+    new_path: str             # Full path to file in new/changed folder
 
 
 class DiffLine(BaseModel):
-    """Model for a single diff line."""
-    line_type: str  # 'added', 'removed', 'context', 'header'
-    content: str
-    old_line_num: Optional[int] = None
-    new_line_num: Optional[int] = None
+    """Model for a single line in a unified diff output."""
+    line_type: str  # Type: 'added', 'removed', 'context', or 'header'
+    content: str    # The line content (without leading +/- prefix)
+    old_line_num: Optional[int] = None  # Line number in old file (if applicable)
+    new_line_num: Optional[int] = None  # Line number in new file (if applicable)
 
 
 class FileDiff(BaseModel):
-    """Model for file diff result."""
-    file_name: str
-    component_name: str
-    has_changes: bool
-    diff_lines: List[DiffLine]
-    unified_diff: List[str]  # Raw unified diff output
-    semantic_diff: Optional[Dict[str, Any]] = None  # Structured semantic diff (if available)
+    """Complete diff result for a single file including parsed and raw diff formats."""
+    file_name: str                                    # Filename only
+    component_name: str                               # Directory/component name for grouping
+    has_changes: bool                                 # True if file contents differ
+    diff_lines: List[DiffLine]                       # Structured diff lines for UI rendering
+    unified_diff: List[str]                          # Raw unified diff output from difflib
+    semantic_diff: Optional[Dict[str, Any]] = None  # Structured semantic changes (keys added/removed/modified)
 
 
 class FileDiffSummary(BaseModel):
-    """Lightweight file diff summary used for folder comparison responses."""
-    file_name: str
-    component_name: str
-    has_changes: bool
-    summary: str
-    old_path: str
-    new_path: str
-    semantic_diff: Optional[Dict[str, Any]] = None
+    """Lightweight diff summary used in folder comparison responses to avoid loading full diffs."""
+    file_name: str            # Filename only
+    component_name: str       # Component folder name
+    has_changes: bool         # True if file differs
+    summary: str              # Human-readable summary (e.g., "5 lines added; 2 removed")
+    old_path: str             # Full path in old folder
+    new_path: str             # Full path in new folder
+    semantic_diff: Optional[Dict[str, Any]] = None  # Structured semantic changes dict
 
 
 class CompareFoldersRequest(BaseModel):
-    """Request model for comparing folders."""
-    old_folder: str
-    new_folder: str
-    workspace_id: str
+    """Request to compare two entire folder hierarchies."""
+    old_folder: str    # Path to baseline/original folder
+    new_folder: str    # Path to changed/new folder
+    workspace_id: str  # Associated workspace identifier
 
 
-from pydantic import Field
 
 
 class FolderNode(BaseModel):
-    """Nested folder node for responses."""
-    name: str
-    path: str
-    subfolders: List["FolderNode"] = Field(default_factory=list)
-    files: List[Dict[str, Any]] = Field(default_factory=list)
+    """Nested folder tree node mirroring directory hierarchy."""
+    name: str  # Folder name (basename only)
+    path: str  # Full normalized path
+    subfolders: List["FolderNode"] = Field(default_factory=list)  # Nested subfolders
+    files: List[Dict[str, Any]] = Field(default_factory=list)  # Files in this folder
 
 
 class MissingFileEntry(BaseModel):
-    """Model for files that exist only on one side of the comparison."""
-    file_path: str
-    component_name: str
-    missing_side: str  # 'OLD' or 'NEW' - indicates which side is missing this file
-    validated: bool = False
+    """Represents a file that exists only on one side of the comparison."""
+    file_path: str        # Full path to the file
+    component_name: str   # Component/directory name
+    missing_side: str     # Which side is missing: 'OLD' or 'NEW'
+    validated: bool = False  # Whether user has reviewed/acknowledged this file
 
 
 class CompareFoldersResponse(BaseModel):
-    """Response model for folder comparison."""
-    total_components: int
-    components_with_changes: int
-    folder_tree: FolderNode
-    file_summaries: List[FileDiffSummary]
-    old_only_files: List[MissingFileEntry]
-    new_only_files: List[MissingFileEntry]
-    errors: List[str]
-    summary: List[str]
+    """Complete response for folder comparison with tree structure and file details."""
+    total_components: int           # Total number of unique components found
+    components_with_changes: int    # Number of components that have file changes
+    folder_tree: FolderNode         # Hierarchical tree structure mirroring old folder
+    file_summaries: List[FileDiffSummary]  # Summary of all file comparisons
+    old_only_files: List[MissingFileEntry]  # Files that exist only in old folder
+    new_only_files: List[MissingFileEntry]  # Files that exist only in new folder
+    errors: List[str]               # Any errors encountered during comparison
+    summary: List[str]              # Human-readable summary messages
 
 
 FolderNode.update_forward_refs()
 
 
 class UpdateExcelRequest(BaseModel):
-    """Request model for updating Excel file."""
-    excel_path: str
-    file_diffs: List[FileDiff]
-    comments: Optional[Dict[str, Dict[str, str]]] = None  # { file_path: { key: comment } }
+    """Request to update an Excel file with comparison results."""
+    excel_path: str                                               # Path to Excel workbook to update
+    file_diffs: List[FileDiff]                                   # Full diff data for each changed file
+    comments: Optional[Dict[str, Dict[str, str]]] = None  # Optional comments: {file_path: {key: text}}
 
 
 class UpdateExcelResponse(BaseModel):
-    """Response model for Excel update."""
-    success: bool
-    message: str
-    updated_rows: int
+    """Response confirming Excel file update."""
+    success: bool      # True if update succeeded
+    message: str       # Status/error message
+    updated_rows: int  # Number of rows added/modified in Excel
 
 
 class ScanFoldersRequest(BaseModel):
-    """Request model for scanning folders."""
-    old_folder: str
-    new_folder: str
+    """Request to scan and match files between two folders."""
+    old_folder: str  # Baseline folder path
+    new_folder: str  # Changed folder path
 
 
 class ScanFoldersResponse(BaseModel):
-    """Response model for folder scan."""
-    matched_pairs: List[FilePair]
-    old_only_files: List[MissingFileEntry]
-    new_only_files: List[MissingFileEntry]
+    """Response with folder scan results and file matching."""
+    matched_pairs: List[FilePair]           # File pairs found in both folders
+    old_only_files: List[MissingFileEntry]  # Files only in old folder
+    new_only_files: List[MissingFileEntry]  # Files only in new folder
 
 
 class WriteChangesRequest(BaseModel):
-    """Request model for writing reviewed changes to Excel."""
-    excel_path: str
-    changes: List[Dict[str, str]]  # Each dict: componentName, fileName, changedLine, comment
+    """Request to write reviewed changes to Excel."""
+    excel_path: str                      # Path to Excel workbook
+    changes: List[Dict[str, str]]  # List of reviewed/approved changes
 
 
 class WriteChangesResponse(BaseModel):
-    """Response model for writing changes."""
-    success: bool
-    message: str
-    written_rows: int
+    """Response for write changes operation."""
+    success: bool      # True if write succeeded
+    message: str       # Status/error message
+    written_rows: int  # Number of rows written to Excel
 
 
 class CompareAndUpdateRequest(BaseModel):
-    """Request model for compare and update."""
-    old_folder: str
-    new_folder: str
-    excel_path: str
-    missing_validations: Optional[List[str]] = []
-    comments: Optional[Dict[str, Dict[str, str]]] = {}
-    workspace_id: str
+    """Request to compare folders and optionally update Excel in one operation."""
+    old_folder: str                                   # Baseline folder path
+    new_folder: str                                   # Changed folder path
+    excel_path: str                                   # Path to Excel file to update (optional)
+    missing_validations: Optional[List[str]] = []    # User-confirmed missing file validations
+    comments: Optional[Dict[str, Dict[str, str]]] = {}  # Optional review comments by file
+    workspace_id: str                                 # Associated workspace identifier
 
 class ServerConfig(BaseModel):
-    """Single server in an environment."""
-    name: str
-    # Optional fields – not used yet in UI, but safe to keep
-    old_folder: str = ""
-    new_folder: str = ""
-    excel_path: str = ""
+    """Configuration for a single server within an environment."""
+    name: str                    # Server identifier (e.g., "Server1", "Instance1")
+    old_folder: str = ""         # Baseline folder path (optional, for future use)
+    new_folder: str = ""         # Changed folder path (optional, for future use)
+    excel_path: str = ""         # Excel workbook path (optional, for future use)
 
 
 class EnvironmentConfig(BaseModel):
-    """Environment (LAB / SIT / UAT / etc.) containing multiple servers."""
-    name: str
-    servers: List[ServerConfig] = Field(default_factory=list)
+    """Configuration for a test environment containing multiple servers."""
+    name: str  # Environment name (e.g., "LAB", "SIT", "UAT", "PROD")
+    servers: List[ServerConfig] = Field(default_factory=list)  # Servers in this environment
 
 
 class WorkspaceCreateRequest(BaseModel):
-    """Request model for creating a workspace (project)."""
-    name: str                               # project/workspace id
-    project_name: Optional[str] = ""        # display name; can equal `name`
-    # legacy single-folder fields (keep for compatibility)
-    old_folder: Optional[str] = ""
-    new_folder: Optional[str] = ""
-    excel_path: Optional[str] = ""
-    # new hierarchical structure
+    """Request to create a new workspace (project configuration)."""
+    name: str                               # Workspace identifier/slug
+    project_name: Optional[str] = ""        # Display name (defaults to name if not provided)
+    # Legacy single-folder fields (kept for backward compatibility)
+    old_folder: Optional[str] = ""          # Baseline folder path (deprecated)
+    new_folder: Optional[str] = ""          # Changed folder path (deprecated)
+    excel_path: Optional[str] = ""          # Excel workbook path (deprecated)
+    # New hierarchical structure for multi-environment/server support
     environments: List[EnvironmentConfig] = Field(default_factory=list)
 
 
 class WorkspaceResponse(BaseModel):
-    """Response model for workspace data."""
-    name: str
-    project_name: Optional[str] = ""
-    old_folder: str = ""
-    new_folder: str = ""
-    excel_path: str = ""
-    environments: List[EnvironmentConfig] = Field(default_factory=list)
-    history: List[Dict[str, Any]] = Field(default_factory=list)
+    """Response containing complete workspace configuration."""
+    name: str                               # Workspace identifier
+    project_name: Optional[str] = ""        # Display name
+    old_folder: str = ""                    # Baseline folder path (legacy)
+    new_folder: str = ""                    # Changed folder path (legacy)
+    excel_path: str = ""                    # Excel workbook path (legacy)
+    environments: List[EnvironmentConfig] = Field(default_factory=list)  # Environments and servers
+    history: List[Dict[str, Any]] = Field(default_factory=list)  # Comparison history
+
 
 class WorkspaceUpdateRequest(BaseModel):
-    """Partial update for workspace (used to update environments, names, etc.)."""
-    project_name: Optional[str] = None
-    old_folder: Optional[str] = None
-    new_folder: Optional[str] = None
-    excel_path: Optional[str] = None
-    environments: Optional[List[EnvironmentConfig]] = None
+    """Request to update existing workspace configuration (partial update)."""
+    project_name: Optional[str] = None       # New display name
+    old_folder: Optional[str] = None         # New baseline folder
+    new_folder: Optional[str] = None         # New changed folder
+    excel_path: Optional[str] = None         # New Excel path
+    environments: Optional[List[EnvironmentConfig]] = None  # Updated environments list
+
 
 class DeltaGroupFile(BaseModel):
-    """Single SQL file in a delta group."""
-    file_name: str
-    relative_path: str
-    full_path: str
+    """Single SQL script file within a delta group."""
+    file_name: str        # Filename only
+    relative_path: str    # Path relative to DeltaDrop root
+    full_path: str        # Absolute path to file
 
 
 class DeltaGroup(BaseModel):
-    """A delta group folder under DeltaDrop (e.g., TableScripts, StoredProcedures)."""
-    name: str
-    files: List[DeltaGroupFile] = Field(default_factory=list)
+    """A delta group folder under DeltaDrop (e.g., TableScripts, StoredProcedures, Functions)."""
+    name: str                                      # Group name (subfolder name under DeltaDrop)
+    files: List[DeltaGroupFile] = Field(default_factory=list)  # SQL files in this group
 
 
 class DeltaScanRequest(BaseModel):
-    """
-    Request for scanning a database DeltaDrop structure.
-
-    root_folder: path to the DatabaseName folder
-                 (the folder that contains BaseDrop and DeltaDrop)
-    excel_path: optional Excel to write results into
-    """
-    root_folder: str
-    excel_path: Optional[str] = ""
+    """Request to scan a database delta structure for SQL migration scripts."""
+    root_folder: str             # Path to database root (contains BaseDrop and DeltaDrop folders)
+    excel_path: Optional[str] = ""  # Optional: path to Excel file for results
 
 
 class DeltaScanResponse(BaseModel):
-    """Response for delta scan (and optional Excel write)."""
-    database_name: str
-    groups: List[DeltaGroup]
-    excel_written: bool
-    message: str
+    """Response from database delta scan operation."""
+    database_name: str        # Extracted database name from folder
+    groups: List[DeltaGroup]  # Delta group folders found
+    excel_written: bool       # True if results were written to Excel
+    message: str              # Status or error message

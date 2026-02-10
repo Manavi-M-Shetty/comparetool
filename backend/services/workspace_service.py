@@ -1,6 +1,7 @@
 """
-Service for managing workspaces.
-Workspaces store comparison settings and history.
+Service for managing workspaces and their configuration.
+Workspaces store project metadata, environments, servers, and comparison history.
+Persists configuration to JSON metadata files in the workspaces directory.
 """
 import os
 import json
@@ -14,7 +15,7 @@ WORKSPACES_DIR = os.path.join(
 )
 
 def ensure_workspaces_dir():
-    """Ensure workspaces directory exists."""
+    """Ensure the workspaces directory exists; creates it if necessary."""
     Path(WORKSPACES_DIR).mkdir(exist_ok=True)
 
 def create_workspace(
@@ -25,7 +26,23 @@ def create_workspace(
     project_name: str = "",
     environments: Optional[List[Dict]] = None,
 ) -> Dict:
-    """Create a new workspace (project)."""
+    """
+    Create a new workspace with configuration metadata.
+    
+    Supports both legacy single-folder configuration (old_folder/new_folder/excel_path)
+    and new hierarchical configuration with multiple environments and servers.
+    
+    Args:
+        name: Unique workspace identifier
+        old_folder: Baseline folder path (legacy field)
+        new_folder: Changed folder path (legacy field)
+        excel_path: Excel workbook path (legacy field)
+        project_name: Display name for the project
+        environments: List of environment configurations (new hierarchical model)
+        
+    Returns:
+        Dictionary containing complete workspace metadata
+    """
     ensure_workspaces_dir()
     workspace_dir = Path(WORKSPACES_DIR) / name
     workspace_dir.mkdir(exist_ok=True)
@@ -33,12 +50,13 @@ def create_workspace(
     metadata = {
         "name": name,
         "project_name": project_name or name,
-        # legacy single-folder config
+        # Legacy single-folder config (maintained for backward compatibility)
         "old_folder": old_folder,
         "new_folder": new_folder,
         "excel_path": excel_path,
-        # new hierarchical config
+        # New hierarchical multi-environment config
         "environments": environments or [],
+        # Historical record of comparisons performed
         "history": [],
     }
 
@@ -46,8 +64,15 @@ def create_workspace(
         json.dump(metadata, f, indent=2)
 
     return metadata
+
+
 def list_workspaces() -> List[str]:
-    """List all workspace names."""
+    """
+    Retrieve all workspace names.
+    
+    Returns:
+        List of workspace identifiers (directory names)
+    """
     ensure_workspaces_dir()
     workspaces_dir = Path(WORKSPACES_DIR)
     if not workspaces_dir.exists():
@@ -55,7 +80,15 @@ def list_workspaces() -> List[str]:
     return [d.name for d in workspaces_dir.iterdir() if d.is_dir()]
 
 def get_workspace(name: str) -> Optional[Dict]:
-    """Get workspace metadata."""
+    """
+    Retrieve complete metadata for a workspace.
+    
+    Args:
+        name: Workspace identifier
+        
+    Returns:
+        Dictionary with workspace configuration, or None if not found
+    """
     workspace_dir = Path(WORKSPACES_DIR) / name
     metadata_file = workspace_dir / "metadata.json"
     if not metadata_file.exists():
@@ -65,11 +98,22 @@ def get_workspace(name: str) -> Optional[Dict]:
         return json.load(f)
 
 def update_workspace(name: str, updates: Dict) -> bool:
-    """Update workspace metadata."""
+    """
+    Update workspace metadata with new values.
+    Performs a shallow merge of provided updates into existing metadata.
+    
+    Args:
+        name: Workspace identifier
+        updates: Dictionary of fields to update
+        
+    Returns:
+        True if update successful, False if workspace not found
+    """
     workspace = get_workspace(name)
     if not workspace:
         return False
     
+    # Merge updates into existing workspace metadata
     workspace.update(updates)
     workspace_dir = Path(WORKSPACES_DIR) / name
     with open(workspace_dir / "metadata.json", "w") as f:
@@ -78,7 +122,14 @@ def update_workspace(name: str, updates: Dict) -> bool:
     return True
 
 def add_comparison_to_history(workspace_name: str, comparison_result: Dict):
-    """Add a comparison result to workspace history."""
+    """
+    Add a comparison result to the workspace's history.
+    Appends the result and updates the workspace metadata.
+    
+    Args:
+        workspace_name: Workspace identifier
+        comparison_result: Dictionary with comparison details to record
+    """
     workspace = get_workspace(workspace_name)
     if workspace:
         workspace["history"].append(comparison_result)
@@ -86,7 +137,17 @@ def add_comparison_to_history(workspace_name: str, comparison_result: Dict):
 
 
 def find_server_config(workspace: Dict, env_name: str, server_name: str) -> Optional[Dict]:
-    """Find a server configuration by environment + server name."""
+    """
+    Find a server configuration within a workspace by environment and server name.
+    
+    Args:
+        workspace: Workspace metadata dictionary
+        env_name: Environment name to search
+        server_name: Server name to search
+        
+    Returns:
+        Server configuration dictionary, or None if not found
+    """
     for env in workspace.get("environments", []):
         if env.get("name") == env_name:
             for srv in env.get("servers", []):
@@ -94,13 +155,16 @@ def find_server_config(workspace: Dict, env_name: str, server_name: str) -> Opti
                     return srv
     return None
 
-# ✅ NEW
 def delete_workspace(name: str) -> bool:
     """
-    Delete a workspace directory (and its metadata/history).
+    Delete a workspace and all its metadata.
+    Removes the entire workspace directory tree.
     
+    Args:
+        name: Workspace identifier
+        
     Returns:
-        True if the workspace existed and was deleted, False otherwise.
+        True if workspace existed and was deleted, False if not found
     """
     ensure_workspaces_dir()
     workspace_dir = Path(WORKSPACES_DIR) / name
@@ -111,5 +175,4 @@ def delete_workspace(name: str) -> bool:
         shutil.rmtree(workspace_dir)
         return True
     except Exception:
-        # you can log the error if you want
         return False

@@ -1,4 +1,9 @@
 // frontend/src/components/CompareButton.jsx
+/**
+ * Compare and Update button component.
+ * Primary action button that triggers folder comparison and optional Excel update.
+ * Shows loading state with spinner during comparison process.
+ */
 
 export default function CompareButton({
   onClick,

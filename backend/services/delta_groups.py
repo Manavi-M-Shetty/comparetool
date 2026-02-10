@@ -1,3 +1,8 @@
+"""
+Service for scanning database delta migration folders.
+Extracts delta groups (migration script collections) from DeltaDrop folder structures.
+Primarily used for SQL Server or similar database migration scenarios.
+"""
 import os
 from typing import Dict, List
 
@@ -11,34 +16,43 @@ from utils.file_utils import (
 
 def scan_delta_groups(database_root: str) -> Dict:
     """
-    Scan a database folder with structure:
-
+    Scan a database folder structure and extract delta migration groups.
+    
+    Expected folder structure:
         <database_root>/
-            BaseDrop/      (ignored)
-            DeltaDrop/
-                TableScripts/
-                StoredProcedures/
-                Functions/
-                Index/
+            BaseDrop/              (ignored - baseline scripts)
+            DeltaDrop/             (processed - delta/migration scripts)
+                TableScripts/      (delta group folder)
+                    table_1.sql
+                    table_2.sql
+                StoredProcedures/  (delta group folder)
+                    proc_1.sql
+                Functions/         (delta group folder)
+                    func_1.sql
                 ...
-
+    
+    Args:
+        database_root: Path to the database root folder
+                      (contains BaseDrop and DeltaDrop subdirectories)
+        
     Returns:
+        Dictionary with structure:
         {
-          "database_name": <str>,
-          "groups": [
-            {
-              "name": "TableScripts",
-              "files": [
+            "database_name": "DatabaseName",
+            "groups": [
                 {
-                  "file_name": "tbl1_delta.sql",
-                  "relative_path": "TableScripts/tbl1_delta.sql",
-                  "full_path": "C:/.../DeltaDrop/TableScripts/tbl1_delta.sql"
+                    "name": "TableScripts",
+                    "files": [
+                        {
+                            "file_name": "table_1.sql",
+                            "relative_path": "TableScripts/table_1.sql",
+                            "full_path": "/path/to/DeltaDrop/TableScripts/table_1.sql"
+                        },
+                        ...
+                    ]
                 },
                 ...
-              ]
-            },
-            ...
-          ]
+            ]
         }
     """
     result = {
@@ -53,28 +67,31 @@ def scan_delta_groups(database_root: str) -> Dict:
     db_name = os.path.basename(database_root.rstrip(os.sep))
     result["database_name"] = db_name
 
-    # DeltaDrop under the database root
+    # DeltaDrop folder contains the migration scripts (BaseDrop is ignored as baseline)
     delta_drop_dir = os.path.join(database_root, "DeltaDrop")
     if not path_exists(delta_drop_dir) or not safe_isdir(delta_drop_dir):
-        # no DeltaDrop -> nothing to do
+        # No DeltaDrop folder means no migration scripts to process
         return result
 
     delta_drop_dir = normalize_path(delta_drop_dir)
 
     groups: List[Dict] = []
 
-    # Each immediate subfolder under DeltaDrop is a delta group
+    # Each immediate subfolder under DeltaDrop represents a delta group
+    # (e.g., TableScripts, StoredProcedures, Functions, etc.)
     for group_name in safe_listdir(delta_drop_dir):
         group_path = os.path.join(delta_drop_dir, group_name)
         if not safe_isdir(group_path):
             continue
 
         files: List[Dict] = []
+        # Recursively collect all SQL files within the group folder
         for dirpath, dirnames, filenames in os.walk(group_path):
             for fname in filenames:
                 if not fname.lower().endswith(".sql"):
                     continue
                 full_path = normalize_path(os.path.join(dirpath, fname))
+                # Compute relative path from DeltaDrop root
                 rel_path = os.path.relpath(full_path, delta_drop_dir)
                 files.append(
                     {
@@ -84,6 +101,7 @@ def scan_delta_groups(database_root: str) -> Dict:
                     }
                 )
 
+        # Only include groups that have SQL files
         if files:
             groups.append(
                 {

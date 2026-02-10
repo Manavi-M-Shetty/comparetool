@@ -1,4 +1,15 @@
 // frontend/src/components/WorkspaceSidebar.jsx
+/**
+ * Left sidebar for workspace and environment/server selection.
+ * 
+ * Features:
+ * - Create new workspaces
+ * - Select workspaces and view their configuration
+ * - Add/manage environments and servers
+ * - Delete workspaces with confirmation
+ * - Collapsible sidebar for better space utilization
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useComparison } from '../context/ComparisonContext';

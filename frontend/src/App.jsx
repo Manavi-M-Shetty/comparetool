@@ -1,4 +1,19 @@
 // frontend/src/App.jsx
+/**
+ * Main application router and layout component.
+ * 
+ * Structure:
+ * - Left sidebar: Workspace and environment selection
+ * - Top header: Navigation tabs and status banner
+ * - Main content: Page-specific content based on route
+ * 
+ * Routes:
+ * - / (Upload): Select folders and initiate comparison
+ * - /results (Comparison): View and interact with comparison results
+ * - /report (Report): Report generation and Excel updates
+ * - /delta (Delta Explorer): Database delta migration viewing
+ */
+
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { ComparisonProvider, useComparison } from './context/ComparisonContext';
 import UploadPage from './pages/UploadPage';
@@ -7,12 +22,12 @@ import ReportPreviewPage from './pages/ReportPreviewPage';
 import WorkspaceModal from './components/WorkspaceModal';
 import WorkspaceSidebar from './components/WorkspaceSidebar';
 import StatusBanner from './components/StatusBanner';
-import { useState, useEffect } from 'react';
-
-// NEW: Delta Explorer page
+import { useState } from 'react';
 import DeltaExplorerPage from './pages/DeltaExplorerPage';
 
-// Simple, flat navigation link (uniform purple theme)
+/**
+ * Navigation link component with active state highlighting.
+ */
 function NavLink({ to, children, icon }) {
   const location = useLocation();
   const isActive = location.pathname === to;
@@ -49,22 +64,27 @@ function AppContent() {
   } = useComparison();
 
   const MODAL_FIRST_SHOWN_KEY = 'workspace_modal_shown_v1';
-  const [showModal, setShowModal] = useState(() => {
-    const savedWs = localStorage.getItem('current_workspace');
-    return !savedWs;
-  });
 
-  useEffect(() => {
+  // Show modal ONLY the very first time the app is opened in this browser.
+  // After we set MODAL_FIRST_SHOWN_KEY in localStorage, it will never auto-show again.
+  const [showModal, setShowModal] = useState(() => {
     try {
       const alreadyShown = localStorage.getItem(MODAL_FIRST_SHOWN_KEY);
-      if (!alreadyShown) {
-        setShowModal(true);
-        localStorage.setItem(MODAL_FIRST_SHOWN_KEY, '1');
-      }
-    } catch (e) {
-      console.warn('Failed to set modal first-load flag', e);
+      return !alreadyShown; // true if not yet shown
+    } catch {
+      return true;
     }
-  }, []);
+  });
+
+  // Common close handler that also sets the "shown once" flag.
+  const closeWorkspaceModal = () => {
+    try {
+      localStorage.setItem(MODAL_FIRST_SHOWN_KEY, '1');
+    } catch {
+      // ignore storage errors
+    }
+    setShowModal(false);
+  };
 
   const getWorkspaceName = () => {
     if (!currentWorkspace) return null;
@@ -182,7 +202,7 @@ function AppContent() {
                   Report
                 </NavLink>
 
-                {/* NEW: Delta Explorer tab */}
+                {/* Delta Explorer tab */}
                 <NavLink
                   to="/delta"
                   icon={
@@ -244,7 +264,6 @@ function AppContent() {
               }
             />
 
-            {/* NEW: Delta Explorer route */}
             <Route
               path="/delta"
               element={
@@ -260,19 +279,19 @@ function AppContent() {
         <div className="h-px bg-purple-100" />
       </div>
 
-      {/* Workspace Modal */}
+      {/* Workspace Modal as landing page (first time only) */}
       {showModal && (
         <WorkspaceModal
           onCreate={async (name) => {
             await createNewWorkspace(name);
-            setShowModal(false);
+            closeWorkspaceModal();
           }}
           onSelect={async (name) => {
             await selectWorkspace(name);
-            setShowModal(false);
+            closeWorkspaceModal();
           }}
           workspaces={workspaces}
-          onClose={() => setShowModal(false)}
+          onClose={closeWorkspaceModal}
         />
       )}
     </div>

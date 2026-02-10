@@ -1,4 +1,15 @@
 // frontend/src/components/DiffViewer.jsx
+/**
+ * Side-by-side diff viewer component with integrated commenting and screenshot capture.
+ * 
+ * Features:
+ * - Syntax-highlighted diff display using react-diff-viewer
+ * - Line-by-line comments with count badges
+ * - Screenshot capture and Excel upload capabilities
+ * - Semantic diff summary display
+ * - Status management (modified, validated, etc.)
+ */
+
 import React, {
   useState,
   useEffect,

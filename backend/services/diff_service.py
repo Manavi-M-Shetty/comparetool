@@ -1,6 +1,7 @@
 """
-Service for generating diffs between files using difflib.
-Produces unified diff format and parsed diff lines for UI display.
+Service for generating unified diffs between files.
+Parses unified diff output into structured diff line objects for UI rendering.
+Integrates semantic diff parsing for JSON, XML, and key-value configuration files.
 """
 import os
 import sys
@@ -16,13 +17,17 @@ from services.semantic_diff import semantic_compare_files
 
 def parse_unified_diff(unified_diff: List[str]) -> List[DiffLine]:
     """
-    Parse unified diff output into structured DiffLine objects.
+    Parse unified diff output into structured DiffLine objects for UI rendering.
+    Extracts line numbers and categorizes lines by type (added, removed, context, header).
+    
+    Parses hunk headers (@@) to extract starting line numbers for both old and new files,
+    then tracks line numbers as context/added/removed lines are processed.
     
     Args:
-        unified_diff: List of unified diff lines
+        unified_diff: List of lines from unified diff output
         
     Returns:
-        List of DiffLine objects
+        List of DiffLine objects with parsed content and line numbers
     """
     diff_lines = []
     old_line_num = None
@@ -30,7 +35,7 @@ def parse_unified_diff(unified_diff: List[str]) -> List[DiffLine]:
     
     for line in unified_diff:
         if line.startswith("---") or line.startswith("+++"):
-            # Header lines
+            # File header lines (---/+++ prefixes)
             diff_lines.append(DiffLine(
                 line_type="header",
                 content=line,
@@ -38,19 +43,20 @@ def parse_unified_diff(unified_diff: List[str]) -> List[DiffLine]:
                 new_line_num=None
             ))
         elif line.startswith("@@"):
-            # Hunk header - extract line numbers
+            # Hunk header: extract starting line numbers for both files
             diff_lines.append(DiffLine(
                 line_type="header",
                 content=line,
                 old_line_num=None,
                 new_line_num=None
             ))
-            # Parse line numbers from hunk header
+            # Parse line numbers from hunk header format: @@ -old_start,old_count +new_start,new_count @@
             try:
                 parts = line.split("@@")[1].strip().split()
                 if len(parts) >= 2:
                     old_part = parts[0].lstrip("-")
                     new_part = parts[1].lstrip("+")
+                    # Extract starting line number (handle both "start" and "start,count" formats)
                     if "," in old_part:
                         old_line_num = int(old_part.split(",")[0])
                     else:
@@ -62,7 +68,7 @@ def parse_unified_diff(unified_diff: List[str]) -> List[DiffLine]:
             except (ValueError, IndexError):
                 pass
         elif line.startswith("-"):
-            # Removed line
+            # Removed line: exists in old file
             diff_lines.append(DiffLine(
                 line_type="removed",
                 content=line[1:] if len(line) > 1 else "",
@@ -72,7 +78,7 @@ def parse_unified_diff(unified_diff: List[str]) -> List[DiffLine]:
             if old_line_num is not None:
                 old_line_num += 1
         elif line.startswith("+"):
-            # Added line
+            # Added line: exists in new file
             diff_lines.append(DiffLine(
                 line_type="added",
                 content=line[1:] if len(line) > 1 else "",
@@ -82,7 +88,7 @@ def parse_unified_diff(unified_diff: List[str]) -> List[DiffLine]:
             if new_line_num is not None:
                 new_line_num += 1
         elif line.startswith(" "):
-            # Context line (unchanged)
+            # Context line: unchanged, exists in both files
             diff_lines.append(DiffLine(
                 line_type="context",
                 content=line[1:] if len(line) > 1 else "",
@@ -94,7 +100,7 @@ def parse_unified_diff(unified_diff: List[str]) -> List[DiffLine]:
             if new_line_num is not None:
                 new_line_num += 1
         else:
-            # Other lines (empty, etc.)
+            # Other lines (empty lines, etc.)
             diff_lines.append(DiffLine(
                 line_type="context",
                 content=line,
@@ -107,8 +113,19 @@ def parse_unified_diff(unified_diff: List[str]) -> List[DiffLine]:
 
 def compare_files(old_path: str, new_path: str) -> Optional[FileDiff]:
     """
-    Compare two files and generate diff.
-    Note: This function reads files into memory to produce a unified diff suitable for single-file views.
+    Compare two files and generate complete diff including parsed lines and semantic diff.
+    
+    Reads both files into memory to produce:
+    1. Unified diff format (standard output from difflib)
+    2. Parsed diff lines with categorized changes for UI display
+    3. Semantic diff (JSON/XML aware) if applicable
+    
+    Args:
+        old_path: Path to baseline/original file
+        new_path: Path to changed/new file
+        
+    Returns:
+        FileDiff object with both raw and parsed diffs, or None if files cannot be read
     """
     old_lines = safe_read_file(old_path)
     new_lines = safe_read_file(new_path)
@@ -116,7 +133,7 @@ def compare_files(old_path: str, new_path: str) -> Optional[FileDiff]:
     if old_lines is None or new_lines is None:
         return None
     
-    # Generate unified diff
+    # Generate unified diff (standard format for broad compatibility)
     unified_diff = list(difflib.unified_diff(
         old_lines,
         new_lines,
@@ -125,16 +142,16 @@ def compare_files(old_path: str, new_path: str) -> Optional[FileDiff]:
         lineterm=""
     ))
     
-    # Check if there are actual changes (not just headers)
+    # Detect actual content changes (ignoring header lines +++/---)
     has_changes = any(
         line.startswith(("+", "-")) and not line.startswith(("+++", "---"))
         for line in unified_diff
     )
     
-    # Parse diff lines
+    # Parse diff lines for structured rendering in UI
     diff_lines = parse_unified_diff(unified_diff)
 
-    # Attempt semantic diff (JSON/XML/key-value aware)
+    # Attempt semantic diff for supported formats (JSON, XML, YAML, etc.)
     try:
         semantic = semantic_compare_files(old_path, new_path)
     except Exception:
@@ -152,23 +169,31 @@ def compare_files(old_path: str, new_path: str) -> Optional[FileDiff]:
 
 def compare_files_metadata(old_path: str, new_path: str, max_semantic_bytes: int = 200 * 1024) -> Optional[dict]:
     """
-    Lightweight, memory-safe comparison of two files that avoids building full diffs.
-    Uses the same text-mode comparison logic as compare_files() to ensure consistency.
-    - Reads files in text mode (normalizes line endings like single-file compare does)
-    - Uses unified diff to detect changes (same as /compare endpoint)
-    - Attempts limited semantic parsing only for small files (<= max_semantic_bytes)
-
-    Returns a dict with keys: has_changes (bool), summary (str), semantic_summary (dict)
+    Lightweight, memory-efficient comparison of two files without building full diffs.
+    Used for batch folder comparisons to avoid loading large files entirely.
+    
+    Optimizations:
+    - Avoids building complete parsed diff line arrays
+    - Uses same text-mode comparison as compare_files() to ensure consistency
+    
+    Args:
+        old_path: Path to baseline file
+        new_path: Path to changed file
+        max_semantic_bytes: File size threshold for semantic parsing (default 200KB)
+        
+    Returns:
+        Dictionary with keys: has_changes, summary, semantic_summary
+        Returns None if files cannot be accessed
     """
     try:
-        # Get file sizes for early validation
+        # Get file sizes for decision making
         s_old = os.path.getsize(old_path)
         s_new = os.path.getsize(new_path)
     except FileNotFoundError:
         return None
 
-    # Read files in text mode (same as single-file compare)
-    # This normalizes line endings, ensuring CRLF and LF are treated as identical
+    # Read files in text mode (same as full compare)
+    # This normalizes line endings (CRLF and LF treated as identical)
     old_lines = safe_read_file(old_path)
     new_lines = safe_read_file(new_path)
     
@@ -184,8 +209,8 @@ def compare_files_metadata(old_path: str, new_path: str, max_semantic_bytes: int
         lineterm=""
     ))
     
-    # Check if there are actual changes (not just headers)
-    # Same logic as single-file compare endpoint
+    # Detect actual content changes (ignoring header lines)
+    # Same logic as full compare for consistency
     has_changes = any(
         line.startswith(("+", "-")) and not line.startswith(("+++", "---"))
         for line in unified_diff
@@ -193,7 +218,7 @@ def compare_files_metadata(old_path: str, new_path: str, max_semantic_bytes: int
     
     summary = "No changes detected" if not has_changes else "Content differs"
 
-    # Semantic parse only for small files to avoid memory issues
+    # Semantic parsing only for small files to limit memory overhead
     semantic_summary = {}
     if s_old <= max_semantic_bytes and s_new <= max_semantic_bytes:
         try:
@@ -215,17 +240,18 @@ def compare_files_metadata(old_path: str, new_path: str, max_semantic_bytes: int
 
 def generate_diff_summary(file_diff: FileDiff) -> str:
     """
-    Generate a human-readable summary of changes.
+    Generate a concise human-readable summary of file changes.
     
     Args:
-        file_diff: FileDiff object
+        file_diff: FileDiff object containing parsed diff data
         
     Returns:
-        Summary string
+        String summarizing the changes (e.g., "5 lines added; 2 removed")
     """
     if not file_diff.has_changes:
         return "No changes detected"
     
+    # Count added and removed lines from parsed diff
     added = sum(1 for line in file_diff.diff_lines if line.line_type == "added")
     removed = sum(1 for line in file_diff.diff_lines if line.line_type == "removed")
     

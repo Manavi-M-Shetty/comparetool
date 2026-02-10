@@ -1,6 +1,7 @@
 """
-Service for updating Excel files with comparison results.
-Safely handles Excel file operations and preserves existing formatting.
+Service for reading and updating Excel workbooks with comparison results.
+Handles Excel operations safely: creates new workbooks, updates existing ones,
+adds diff images, and preserves formatting. Includes checks for open files.
 """
 import os
 import sys
@@ -23,10 +24,19 @@ from utils.file_utils import path_exists
 def sheet_name_from_component(component_name: str,
                               default: str = "Diff Screenshots") -> str:
     """
-    Build a valid Excel sheet name from a component name.
-    - Removes invalid characters: [] : * ? / \
-    - Trims to 31 chars (Excel limit)
-    - Falls back to default if empty/invalid
+    Convert a component name into a valid Excel sheet name.
+    
+    Excel sheet names have restrictions:
+    - Invalid characters: [] : * ? / \\
+    - Maximum length: 31 characters
+    - Cannot be empty
+    
+    Args:
+        component_name: Component or folder name
+        default: Fallback sheet name if component is empty or invalid
+        
+    Returns:
+        Valid Excel sheet name
     """
     name = (component_name or "").strip()
     if not name:
@@ -37,32 +47,33 @@ def sheet_name_from_component(component_name: str,
     if not cleaned:
         return default
 
-    # Excel sheet name max length = 31
+    # Truncate to Excel's maximum sheet name length (31 characters)
     if len(cleaned) > 31:
         cleaned = cleaned[:31]
 
     return cleaned
 
 def check_excel_open(excel_path: str) -> bool:
-  """
-  Check if Excel file is open by attempting to open it in write mode.
+    """
+    Check if an Excel file is currently open or locked by another process.
+    Uses file I/O to detect locks (PermissionError if file is open).
+    
+    Args:
+        excel_path: Path to Excel file
+        
+    Returns:
+        True if file is open/locked, False if accessible or doesn't exist
+    """
+    if not path_exists(excel_path):
+        return False
 
-  Args:
-      excel_path: Path to Excel file
-
-  Returns:
-      True if file appears to be open, False otherwise
-  """
-  if not path_exists(excel_path):
-    return False
-
-  try:
-    # Try to open file in append mode - will fail if file is open
-    with open(excel_path, "r+b"):
-      return False
-  except (PermissionError, IOError):
-    return True
-
+    try:
+        # Attempt to open in read-write binary mode
+        # Will raise PermissionError if file is open in another process
+        with open(excel_path, "r+b"):
+            return False
+    except (PermissionError, IOError):
+        return True
 
 
 def add_diff_image_to_excel(
@@ -74,13 +85,26 @@ def add_diff_image_to_excel(
     server_name: str = "",
 ) -> Tuple[bool, str, int]:
     """
-    Add a screenshot image to the given Excel file in a separate sheet.
-
-    - One sheet per component (based on component_name)
-    - Every call appends a new block (meta row + image row) at the *bottom*
-      of the sheet, so repeated "Capture all" runs never overlap old images.
+    Add a diff screenshot image to an Excel workbook.
+    
+    Behavior:
+    - Creates workbook if not exists
+    - Creates sheet per component (one sheet contains all images for that component)
+    - Appends images to sheet bottom (supports multiple "Capture all" runs)
+    - Embeds image metadata (file name, component, server)
+    
+    Args:
+        excel_path: Path to Excel file to update
+        file_name: Name of the file being diffed
+        image_file_path: Temporary path to the diff screenshot
+        component_name: Component/folder name for sheet grouping
+        sheet_name: Optional explicit sheet name (uses component_name if not provided)
+        server_name: Optional server identifier for metadata
+        
+    Returns:
+        Tuple of (success: bool, message: str, rows_added: int)
     """
-        # Check if Excel is open
+    # Check if Excel is open by another process
     if check_excel_open(excel_path):
         return False, "Please close Excel file first", 0
 
@@ -93,7 +117,7 @@ def add_diff_image_to_excel(
             if "Sheet" in workbook.sheetnames:
                 workbook.remove(workbook["Sheet"])
 
-        # Decide which sheet to use: one sheet per component
+        # Determine target sheet (one per component)
         if sheet_name is None:
             sheet_name = sheet_name_from_component(component_name)
 
