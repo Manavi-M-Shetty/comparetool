@@ -1,4 +1,3 @@
-// frontend/src/components/WorkspaceModal.jsx
 import React, { useState, useEffect } from 'react';
 
 export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], onClose }) {
@@ -60,9 +59,11 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
       {/* Card container */}
-      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden
+                      dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100">
         {/* Header */}
-        <div className="px-6 md:px-8 py-5 border-b border-slate-200 flex items-center justify-between gap-4">
+        <div className="px-6 md:px-8 py-5 border-b border-slate-200 flex items-center justify-between gap-4
+                        dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-9 h-9 rounded-md bg-purple-600 text-white">
               <svg
@@ -80,10 +81,10 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
               </svg>
             </div>
             <div>
-              <h2 className="text-base md:text-lg font-semibold text-slate-900">
+              <h2 className="text-base md:text-lg font-semibold text-slate-900 dark:text-slate-50">
                 Release Notes Automation
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Configure workspaces, environments, and servers before comparing configs.
               </p>
             </div>
@@ -92,7 +93,8 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+            className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500/60
+                       dark:text-slate-500 dark:hover:text-slate-100 dark:hover:bg-slate-800"
             title="Skip for now"
           >
             <svg
@@ -108,17 +110,17 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
         </div>
 
         {/* Body */}
-        <div className="px-6 md:px-8 py-5 bg-slate-50">
+        <div className="px-6 md:px-8 py-5 bg-slate-50 dark:bg-slate-900">
           {/* Intro row */}
           <div className="mb-5 grid gap-4 md:grid-cols-3">
-            <div className="md:col-span-2 text-sm text-slate-600 leading-relaxed">
+            <div className="md:col-span-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
               <p>
-                A <span className="font-semibold">workspace</span> groups environments and servers for
-                a project or release. Each server keeps its own comparison history, Excel path, and
-                review session.
+                A <span className="font-semibold">workspace</span> groups environments and servers
+                for a project or release. Each server keeps its own comparison history, Excel path,
+                and review session.
               </p>
             </div>
-            <ul className="space-y-1.5 text-xs text-slate-500">
+            <ul className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
               <li className="flex items-center gap-2">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-500" />
                 Configure multiple environments (LAB / SIT / UAT / PROD)
@@ -141,7 +143,8 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
               <button
                 type="button"
                 onClick={() => setMode('create')}
-                className="w-full text-left rounded-xl border border-purple-200 bg-white hover:border-purple-400 hover:shadow-md transition-all px-4 py-3 flex flex-col gap-2"
+                className="w-full text-left rounded-xl border border-purple-200 bg-white hover:border-purple-400 hover:shadow-md transition-all px-4 py-3 flex flex-col gap-2
+                           dark:bg-slate-900 dark:border-purple-500/40 dark:hover:border-purple-500 dark:hover:bg-slate-800"
               >
                 <div className="flex items-center gap-2">
                   <div className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-purple-600 text-white">
@@ -159,15 +162,15 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
                       />
                     </svg>
                   </div>
-                  <span className="text-sm font-semibold text-slate-900">
+                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-50">
                     Start a new workspace
                   </span>
                 </div>
-                <p className="text-xs text-slate-600">
+                <p className="text-xs text-slate-600 dark:text-slate-400">
                   Use this for a new project or release. You’ll add environments and servers from
                   the left sidebar.
                 </p>
-                <ul className="mt-1 text-[11px] text-slate-500 space-y-0.5">
+                <ul className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5">
                   <li>• Keeps comparisons separate per server.</li>
                   <li>• Stores folder paths and Excel locations.</li>
                 </ul>
@@ -180,12 +183,12 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
                 disabled={workspaces.length === 0}
                 className={`w-full text-left rounded-xl border px-4 py-3 flex flex-col gap-2 transition-all ${
                   workspaces.length === 0
-                    ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
-                    : 'border-slate-200 bg-white hover:border-purple-300 hover:shadow-md'
+                    ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500'
+                    : 'border-slate-200 bg-white hover:border-purple-300 hover:shadow-md dark:bg-slate-900 dark:border-slate-700 dark:hover:border-purple-400 dark:hover:bg-slate-800'
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <div className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-slate-100 text-purple-600">
+                  <div className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-slate-100 text-purple-600 dark:bg-slate-800 dark:text-purple-300">
                     <svg
                       className="w-4 h-4"
                       fill="none"
@@ -201,22 +204,22 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
                     </svg>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-900">
+                    <span className="text-sm font-semibold text-slate-900 dark:text-slate-50">
                       Open existing workspace
                     </span>
                     {workspaces.length > 0 && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/40 dark:text-purple-100 dark:border-purple-500/40">
                         {workspaces.length} available
                       </span>
                     )}
                   </div>
                 </div>
-                <p className="text-xs text-slate-600">
+                <p className="text-xs text-slate-600 dark:text-slate-400">
                   Restore environments, servers, compare results, and Excel settings from a previous
                   session.
                 </p>
                 {workspaces.length === 0 && (
-                  <p className="text-[11px] text-slate-500 italic mt-1">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-500 italic mt-1">
                     No workspaces yet &mdash; start by creating one.
                   </p>
                 )}
@@ -227,7 +230,7 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
           {/* CREATE MODE */}
           {mode === 'create' && (
             <div className="space-y-4">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
                 Give your workspace a clear name. This might be a project name, migration window, or
                 release identifier.
               </p>
@@ -240,7 +243,9 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
                   onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
                   placeholder="e.g., Billing-Migration-UAT, CoreBanking-Release-2025Q1"
-                  className="w-full px-4 py-2.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 placeholder-slate-400
+                             focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500
+                             dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
                 />
               </div>
 
@@ -251,7 +256,8 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
                       key={s}
                       type="button"
                       onClick={() => setNewName(s)}
-                      className="px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-600 hover:border-purple-400 hover:text-purple-700 hover:bg-purple-50 transition-colors"
+                      className="px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-600 hover:border-purple-400 hover:text-purple-700 hover:bg-purple-50 transition-colors
+                                 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:border-purple-400 dark:hover:text-purple-200"
                     >
                       {s}
                     </button>
@@ -266,7 +272,8 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
                     setMode(null);
                     setNewName('');
                   }}
-                  className="flex-1 inline-flex items-center justify-center rounded-md border border-slate-300 bg-white text-xs md:text-sm font-medium text-slate-700 px-3 py-2 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                  className="flex-1 inline-flex items-center justify-center rounded-md border border-slate-300 bg-white text-xs md:text-sm font-medium text-slate-700 px-3 py-2 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500/60
+                             dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
                 >
                   Back
                 </button>
@@ -325,7 +332,7 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
           {/* SELECT MODE */}
           {mode === 'select' && (
             <div className="space-y-4">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-slate-600 dark:text-slate-300">
                 Pick a workspace to restore its environments, servers, and previous comparison
                 sessions.
               </p>
@@ -350,14 +357,16 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
                     placeholder="Search workspaces..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-md border border-slate-300 bg-white text-sm text-slate-900 placeholder-slate-400
+                               focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500
+                               dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
                   />
                 </div>
               )}
 
               <div className="max-h-60 overflow-y-auto space-y-2 pr-1 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
                 {filteredWorkspaces.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-6 text-center border border-dashed border-slate-200 rounded-xl bg-white">
+                  <div className="flex flex-col items-center justify-center py-6 text-center border border-dashed border-slate-200 rounded-xl bg-white dark:bg-slate-900 dark:border-slate-700">
                     <svg
                       className="w-6 h-6 text-slate-400 mb-2"
                       fill="none"
@@ -371,7 +380,7 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
                         d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
                       />
                     </svg>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
                       {searchTerm ? 'No matching workspaces' : 'No workspaces found'}
                     </p>
                   </div>
@@ -382,14 +391,17 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
                       type="button"
                       onClick={() => handleSelect(ws)}
                       disabled={isLoading}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md border border-slate-200 bg-white text-left hover:border-purple-300 hover:bg-purple-50 transition-colors disabled:opacity-60"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md border border-slate-200 bg-white text-left hover:border-purple-300 hover:bg-purple-50 transition-colors disabled:opacity-60
+                                 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800 dark:hover:border-purple-400"
                     >
-                      <div className="flex items-center justify-center w-8 h-8 rounded-md bg-purple-50 text-purple-700 text-sm font-semibold">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-md bg-purple-50 text-purple-700 text-sm font-semibold dark:bg-purple-900/40 dark:text-purple-100">
                         {ws.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate">{ws}</p>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-sm font-medium text-slate-900 dark:text-slate-50 truncate">
+                          {ws}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
                           Click to restore environments &amp; servers
                         </p>
                       </div>
@@ -405,14 +417,16 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
                     setMode(null);
                     setSearchTerm('');
                   }}
-                  className="flex-1 inline-flex items-center justify-center rounded-md border border-slate-300 bg-white text-xs md:text-sm font-medium text-slate-700 px-3 py-2 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                  className="flex-1 inline-flex items-center justify-center rounded-md border border-slate-300 bg-white text-xs md:text-sm font-medium text-slate-700 px-3 py-2 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500/60
+                             dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
                 >
                   Back
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 inline-flex items-center justify-center rounded-md bg-slate-100 text-xs md:text-sm font-medium text-slate-700 px-3 py-2 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+                  className="flex-1 inline-flex items-center justify-center rounded-md bg-slate-100 text-xs md:text-sm font-medium text-slate-700 px-3 py-2 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/60
+                             dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
                 >
                   Close
                 </button>
@@ -422,7 +436,8 @@ export default function WorkspaceModal({ onCreate, onSelect, workspaces = [], on
         </div>
 
         {/* Small footer strip */}
-        <div className="px-6 md:px-8 py-3 bg-white border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+        <div className="px-6 md:px-8 py-3 bg-white border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500
+                        dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400">
           <span>Tip: You can always change workspace from the left sidebar.</span>
           <span className="hidden sm:inline">Release Notes Automation Tool</span>
         </div>

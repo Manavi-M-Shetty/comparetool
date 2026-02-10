@@ -1,7 +1,6 @@
-// frontend/src/components/WorkspaceSidebar.jsx
 /**
  * Left sidebar for workspace and environment/server selection.
- * 
+ *
  * Features:
  * - Create new workspaces
  * - Select workspaces and view their configuration
@@ -27,8 +26,8 @@ export default function WorkspaceSidebar() {
     deleteWorkspace,
     updateCurrentWorkspace,
     selectEnvServer,
-    selectedEnv,        // 👈 NEW: for highlighting selected server
-    selectedServer,     // 👈 NEW
+    selectedEnv,
+    selectedServer,
   } = useComparison();
 
   const [isCreating, setIsCreating] = useState(false);
@@ -46,6 +45,11 @@ export default function WorkspaceSidebar() {
   const [serverWorkspaceName, setServerWorkspaceName] = useState('');
   const [serverEnvName, setServerEnvName] = useState('');
   const [serverInput, setServerInput] = useState('');
+
+  // delete‑workspace confirm modal
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [workspaceToDelete, setWorkspaceToDelete] = useState('');
+  const [deletingWorkspace, setDeletingWorkspace] = useState(false);
 
   const navigate = useNavigate();
 
@@ -88,18 +92,36 @@ export default function WorkspaceSidebar() {
     }
   };
 
-  const handleDelete = async (name, e) => {
+  // Open confirm popup instead of window.confirm
+  const handleDelete = (name, e) => {
     e.stopPropagation();
-    const ok = window.confirm(
-      `Are you sure you want to delete workspace "${name}"? This cannot be undone.`
-    );
-    if (!ok) return;
-    await deleteWorkspace(name);
-    setWorkspaceMeta((prev) => {
-      const copy = { ...prev };
-      delete copy[name];
-      return copy;
-    });
+    setWorkspaceToDelete(name);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDeleteWorkspace = async () => {
+    if (!workspaceToDelete) return;
+    setDeletingWorkspace(true);
+    try {
+      await deleteWorkspace(workspaceToDelete);
+      setWorkspaceMeta((prev) => {
+        const copy = { ...prev };
+        delete copy[workspaceToDelete];
+        return copy;
+      });
+    } catch (e) {
+      console.error('Failed to delete workspace', e);
+    } finally {
+      setDeletingWorkspace(false);
+      setDeleteModalOpen(false);
+      setWorkspaceToDelete('');
+    }
+  };
+
+  const cancelDeleteWorkspace = () => {
+    if (deletingWorkspace) return; // optional: block while deleting
+    setDeleteModalOpen(false);
+    setWorkspaceToDelete('');
   };
 
   const getMetaForWorkspace = (name) => {
@@ -229,12 +251,16 @@ export default function WorkspaceSidebar() {
   return (
     <>
       <div
-        className={`relative flex flex-col h-screen border-r border-slate-200 bg-white text-slate-900 transition-all duration-200 ${
+        className={`relative flex flex-col h-screen border-r border-slate-200 bg-white text-slate-900 transition-all duration-200
+                    dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 ${
           isCollapsed ? 'w-16' : 'w-72'
         }`}
       >
         {/* Header */}
-        <div className="px-3 py-3 border-b border-slate-200 flex items-center justify-between">
+        <div
+          className="px-3 py-3 border-b border-slate-200 bg-white flex items-center justify-between
+                     dark:bg-slate-900 dark:border-slate-700"
+        >
           {!isCollapsed && (
             <div className="flex items-center gap-2">
               <div className="flex items-center justify-center w-8 h-8 rounded-md bg-purple-600 text-white">
@@ -253,10 +279,10 @@ export default function WorkspaceSidebar() {
                 </svg>
               </div>
               <div className="leading-tight">
-                <h2 className="text-sm font-semibold text-slate-900">
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
                   Workspaces
                 </h2>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   {workspaces?.length || 0} available
                 </p>
               </div>
@@ -266,7 +292,8 @@ export default function WorkspaceSidebar() {
           {/* Collapse toggle */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/60"
+            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/60
+                       dark:hover:bg-slate-800 dark:text-slate-300 dark:hover:text-slate-100"
             title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             <svg
@@ -292,7 +319,7 @@ export default function WorkspaceSidebar() {
           {(!workspaces || workspaces.length === 0) ? (
             !isCollapsed && (
               <div className="flex flex-col items-center justify-center py-8 px-3 text-center">
-                <div className="mb-3 flex items-center justify-center w-10 h-10 rounded-full bg-purple-100 text-purple-700">
+                <div className="mb-3 flex items-center justify-center w-10 h-10 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
                   <svg
                     className="w-5 h-5"
                     fill="none"
@@ -307,10 +334,10 @@ export default function WorkspaceSidebar() {
                     />
                   </svg>
                 </div>
-                <p className="text-sm font-medium text-slate-800 mb-1">
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100 mb-1">
                   No workspaces yet
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Create your first workspace to get started.
                 </p>
               </div>
@@ -340,15 +367,15 @@ export default function WorkspaceSidebar() {
                     }}
                     className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-left text-xs md:text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/60 ${
                       isSelected
-                        ? 'bg-purple-50 border border-purple-200 text-purple-700'
-                        : 'text-slate-700 hover:bg-slate-50'
+                        ? 'bg-purple-50 border border-purple-200 text-purple-700 dark:bg-purple-900/40 dark:border-purple-500/40 dark:text-purple-100'
+                        : 'text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800'
                     } ${isCollapsed ? 'justify-center' : ''}`}
                   >
                     <div
                       className={`flex items-center justify-center w-7 h-7 rounded-md text-xs font-semibold ${
                         isSelected
                           ? 'bg-purple-600 text-white'
-                          : 'bg-purple-100 text-purple-700'
+                          : 'bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-100'
                       }`}
                     >
                       {name.charAt(0).toUpperCase()}
@@ -365,7 +392,7 @@ export default function WorkspaceSidebar() {
                             {name}
                           </p>
                           {isActive && (
-                            <p className="text-[11px] text-purple-500">
+                            <p className="text-[11px] text-purple-500 dark:text-purple-300">
                               Active workspace
                             </p>
                           )}
@@ -375,7 +402,7 @@ export default function WorkspaceSidebar() {
                           type="button"
                           title="Delete workspace"
                           onClick={(e) => handleDelete(name, e)}
-                          className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-red-500"
+                          className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-red-500 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-red-400"
                         >
                           <svg
                             className="w-4 h-4"
@@ -397,20 +424,20 @@ export default function WorkspaceSidebar() {
                   {!isCollapsed && isExpanded && (
                     <div className="ml-8 mt-1 mb-1 space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           Environments
                         </span>
                         <button
                           type="button"
                           onClick={() => startAddEnvironment(name)}
-                          className="text-[11px] text-purple-600 hover:text-purple-800"
+                          className="text-[11px] text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-100"
                         >
                           + Add env
                         </button>
                       </div>
 
                       {!(meta && meta.environments && meta.environments.length) ? (
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500">
                           No environments yet. Click &quot;+ Add env&quot; to
                           create one.
                         </p>
@@ -419,10 +446,10 @@ export default function WorkspaceSidebar() {
                           {(meta.environments || []).map((env) => (
                             <div
                               key={env.name}
-                              className="border border-slate-200 rounded-md bg-slate-50"
+                              className="border border-slate-200 rounded-md bg-slate-50 dark:bg-slate-900 dark:border-slate-700"
                             >
                               <div className="flex items-center justify-between px-2 py-1.5">
-                                <span className="text-xs font-semibold text-slate-700">
+                                <span className="text-xs font-semibold text-slate-700 dark:text-slate-100">
                                   {env.name}
                                 </span>
                                 <button
@@ -430,14 +457,14 @@ export default function WorkspaceSidebar() {
                                   onClick={() =>
                                     startAddServer(name, env.name)
                                   }
-                                  className="text-[11px] text-purple-600 hover:text-purple-800"
+                                  className="text-[11px] text-purple-600 hover:text-purple-800 dark:text-purple-300 dark:hover:text-purple-100"
                                 >
                                   + Server
                                 </button>
                               </div>
                               <div className="pl-3 pr-2 pb-1">
                                 {(env.servers || []).length === 0 ? (
-                                  <p className="text-[11px] text-slate-400">
+                                  <p className="text-[11px] text-slate-400 dark:text-slate-500">
                                     No servers yet.
                                   </p>
                                 ) : (
@@ -463,15 +490,15 @@ export default function WorkspaceSidebar() {
                                             className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md border text-xs md:text-sm font-medium
                                               ${
                                                 isServerSelected
-                                                  ? 'bg-purple-100 text-purple-900 border-purple-400'
-                                                  : 'bg-white text-slate-800 border-transparent hover:bg-slate-100 hover:border-slate-200'
+                                                  ? 'bg-purple-100 text-purple-900 border-purple-400 dark:bg-purple-900/60 dark:text-purple-100 dark:border-purple-500/70'
+                                                  : 'bg-white text-slate-800 border-transparent hover:bg-slate-100 hover:border-slate-200 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800'
                                               }`}
                                           >
                                             <span
                                               className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold ${
                                                 isServerSelected
                                                   ? 'bg-purple-600 text-white'
-                                                  : 'bg-slate-200 text-slate-700'
+                                                  : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-100'
                                               }`}
                                             >
                                               S
@@ -499,7 +526,7 @@ export default function WorkspaceSidebar() {
         </div>
 
         {/* Create new workspace */}
-        <div className="px-3 py-3 border-t border-slate-200 bg-slate-50">
+        <div className="px-3 py-3 border-t border-slate-200 bg-slate-50 dark:bg-slate-900 dark:border-slate-700">
           {!isCreating ? (
             <button
               type="button"
@@ -539,7 +566,7 @@ export default function WorkspaceSidebar() {
                       setNewName('');
                     }
                   }}
-                  className="w-full px-3 py-2 rounded-md text-sm bg-white border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  className="w-full px-3 py-2 rounded-md text-sm bg-white border border-slate-300 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-400 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
                 />
 
                 <div className="flex gap-2">
@@ -570,13 +597,13 @@ export default function WorkspaceSidebar() {
                       setIsCreating(false);
                       setNewName('');
                     }}
-                    className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 text-xs md:text-sm font-medium px-3 py-2 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500/70"
+                    className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 text-xs md:text-sm font-medium px-3 py-2 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500/70 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
                   >
                     Cancel
                   </button>
                 </div>
 
-                <p className="text-[10px] text-slate-500">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
                   Press Enter to create or Esc to cancel.
                 </p>
               </div>
@@ -588,11 +615,11 @@ export default function WorkspaceSidebar() {
       {/* Environment Name Modal */}
       {envModalOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-4 border border-slate-200">
-            <h3 className="text-sm font-semibold text-slate-900 mb-2">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-4 border border-slate-200 dark:bg-slate-900 dark:border-slate-700">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-2">
               New Environment
             </h3>
-            <p className="text-xs text-slate-500 mb-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
               Workspace: <span className="font-mono">{envWorkspaceName}</span>
             </p>
             <input
@@ -605,13 +632,13 @@ export default function WorkspaceSidebar() {
                 if (e.key === 'Escape') setEnvModalOpen(false);
               }}
               placeholder="e.g., LAB, SIT, UAT"
-              className="w-full px-3 py-2 mb-3 rounded-md border border-slate-300 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-3 py-2 mb-3 rounded-md border border-slate-300 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
             />
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setEnvModalOpen(false)}
-                className="px-3 py-1.5 rounded-md border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-100"
+                className="px-3 py-1.5 rounded-md border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
@@ -631,14 +658,14 @@ export default function WorkspaceSidebar() {
       {/* Server Name Modal */}
       {serverModalOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-4 border border-slate-200">
-            <h3 className="text-sm font-semibold text-slate-900 mb-2">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-4 border border-slate-200 dark:bg-slate-900 dark:border-slate-700">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-2">
               New Server
             </h3>
-            <p className="text-xs text-slate-500 mb-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
               Workspace: <span className="font-mono">{serverWorkspaceName}</span>
             </p>
-            <p className="text-xs text-slate-500 mb-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
               Environment: <span className="font-mono">{serverEnvName}</span>
             </p>
             <input
@@ -651,13 +678,13 @@ export default function WorkspaceSidebar() {
                 if (e.key === 'Escape') setServerModalOpen(false);
               }}
               placeholder="e.g., server1"
-              className="w-full px-3 py-2 mb-3 rounded-md border border-slate-300 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-3 py-2 mb-3 rounded-md border border-slate-300 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500"
             />
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setServerModalOpen(false)}
-                className="px-3 py-1.5 rounded-md border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-100"
+                className="px-3 py-1.5 rounded-md border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-100 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
@@ -668,6 +695,107 @@ export default function WorkspaceSidebar() {
                 className="px-3 py-1.5 rounded-md bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 disabled:opacity-60"
               >
                 Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete workspace confirmation modal */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60">
+          <div className="w-full max-w-md glass-panel rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex items-center justify-center w-9 h-9 rounded-full bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-200">
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v3m0 4h.01M4.5 20h15a1.5 1.5 0 001.3-2.25l-7.5-13a1.5 1.5 0 00-2.6 0l-7.5 13A1.5 1.5 0 004.5 20z"
+                  />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                  Delete workspace?
+                </h2>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                  This will permanently remove{' '}
+                  <span className="font-semibold">
+                    {workspaceToDelete}
+                  </span>{' '}
+                  and all of its saved environments, servers, and sessions.
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3 mt-2">
+              <button
+                type="button"
+                onClick={cancelDeleteWorkspace}
+                disabled={deletingWorkspace}
+                className="btn-secondary w-full sm:w-auto justify-center"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteWorkspace}
+                disabled={deletingWorkspace}
+                className="inline-flex items-center justify-center w-full sm:w-auto px-4 py-2 rounded-md text-xs font-medium
+                           bg-red-600 text-white border border-red-600 shadow-sm
+                           hover:bg-red-700 hover:border-red-700
+                           disabled:opacity-60 disabled:cursor-not-allowed
+                           focus:outline-none focus:ring-2 focus:ring-red-500/70"
+              >
+                {deletingWorkspace ? (
+                  <>
+                    <svg
+                      className="w-4 h-4 mr-2 animate-spin"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                    Deleting…
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-4 h-4 mr-2"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                    Delete workspace
+                  </>
+                )}
               </button>
             </div>
           </div>

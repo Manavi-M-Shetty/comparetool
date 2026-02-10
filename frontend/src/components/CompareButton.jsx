@@ -12,18 +12,26 @@ export default function CompareButton({
 }) {
   const isDisabled = disabled || loading;
 
+  const baseClasses = `
+    inline-flex items-center justify-center gap-2
+    rounded-md min-w-[200px] px-8 py-3
+    text-sm font-medium
+    bg-purple-600 text-white border border-purple-600 shadow-sm
+    hover:bg-purple-700 hover:border-purple-700
+    focus:outline-none focus:ring-2 focus:ring-purple-500/60 focus:ring-offset-1 focus:ring-offset-transparent
+    disabled:opacity-60 disabled:cursor-not-allowed
+    dark:bg-purple-500 dark:border-purple-500
+    dark:hover:bg-purple-400 dark:hover:border-purple-400
+    dark:focus:ring-purple-400/70
+  `;
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={isDisabled}
       aria-busy={loading}
-      className={`
-        btn-primary
-        min-w-[200px]
-        px-8 py-3
-        flex items-center justify-center gap-2
-      `}
+      className={baseClasses}
     >
       {loading ? (
         <>
@@ -46,7 +54,7 @@ export default function CompareButton({
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
           </svg>
-          <span className="text-sm font-medium">Comparing...</span>
+          <span className="text-sm font-medium">Comparing…</span>
         </>
       ) : (
         <>

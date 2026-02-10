@@ -2,12 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global Theme (flat, purple) */
+/* THEME VARIABLES
+   ------------------------------------------------------------------ */
+
 :root {
-  --bg-page: #f3f4f6;          /* page background */
+  /* Light theme */
+  --bg-page: #f3f4f6;          /* light page background (slate-100) */
   --bg-card: #ffffff;          /* cards / panels */
-  --border-subtle: #e5e7eb;
-  --text-main: #111827;
+  --border-subtle: #e5e7eb;    /* slate-200 */
+  --text-main: #111827;        /* slate-900 */
 
   --primary-50:  #f5f3ff;
   --primary-100: #ede9fe;
@@ -18,9 +21,17 @@
   --primary-700: #6d28d9;
 }
 
+/* Dark theme overrides */
+.dark :root {
+  --bg-page: #020617;          /* slate-950 */
+  --bg-card: #020617;          /* deep slate card */
+  --border-subtle: #1f2937;    /* slate-800 border */
+  --text-main: #e5e7eb;        /* slate-200 text */
+}
+
 /* Base body */
 body {
-  background-color: var(--bg-page); /* flat background, no gradient */
+  background-color: var(--bg-page);
   color: var(--text-main);
   font-family: 'Roboto', system-ui, -apple-system, BlinkMacSystemFont,
     'Segoe UI', sans-serif;
@@ -28,70 +39,17 @@ body {
   margin: 0;
 }
 
-/* Reusable flat card / panel */
+/* Reusable flat card / panel
+   ------------------------------------------------------------------ */
+
 .glass-panel {
   background-color: var(--bg-card);
   border-radius: 0.75rem;
-  border: 1px solid rgba(148, 163, 184, 0.5); /* slate-400 @ 50% */
+  border: 1px solid var(--border-subtle);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--primary-200);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--primary-400);
-}
-
-/* Thin scrollbar variant */
-.scrollbar-thin::-webkit-scrollbar {
-  width: 4px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.25); /* primary-500 @ 25% */
-  border-radius: 2px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 92, 246, 0.45);
-}
-
-/* Uniform button styles (flat, purple) */
-@layer components {
-  .btn-primary {
-    @apply inline-flex items-center justify-center px-3 py-1.5 rounded-md
-      text-sm font-medium
-      bg-purple-600 text-white
-      hover:bg-purple-700
-      focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1
-      disabled:bg-purple-300 disabled:text-purple-100 disabled:cursor-not-allowed;
-  }
-
-  .btn-secondary {
-    @apply inline-flex items-center justify-center px-3 py-1.5 rounded-md
-      text-sm font-medium
-      bg-white text-purple-700 border border-purple-200
-      hover:bg-purple-50
-      focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1
-      disabled:opacity-60 disabled:cursor-not-allowed;
-  }
+/* Extra Tailwind tuning for dark mode */
+.dark .glass-panel {
+  @apply bg-slate-900/90 border-slate-700;
 }

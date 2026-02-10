@@ -28,17 +28,19 @@ export default class ErrorBoundary extends React.Component {
     const errorText = `Error: ${this.state.error}\n\nStack: ${
       this.state.errorInfo?.componentStack || "N/A"
     }`;
-    navigator.clipboard.writeText(errorText);
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(errorText).catch(() => {});
+    }
   };
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-100 px-4 py-6">
+        <div className="min-h-screen flex items-center justify-center bg-slate-100 px-4 py-6 dark:bg-slate-900">
           <div className="w-full max-w-xl glass-panel p-6 md:p-8">
             {/* Header */}
             <div className="flex items-start gap-3 mb-6">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100 text-red-600">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-200">
                 <svg
                   className="w-6 h-6"
                   fill="none"
@@ -54,10 +56,10 @@ export default class ErrorBoundary extends React.Component {
                 </svg>
               </div>
               <div>
-                <h1 className="text-lg md:text-xl font-semibold text-slate-900">
+                <h1 className="text-lg md:text-xl font-semibold text-slate-900 dark:text-slate-50">
                   Something went wrong
                 </h1>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                   The application encountered an unexpected error and
                   couldn't continue.
                 </p>
@@ -67,7 +69,7 @@ export default class ErrorBoundary extends React.Component {
             {/* Error details */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-slate-700 uppercase tracking-wide">
+                <span className="text-xs font-medium text-slate-700 uppercase tracking-wide dark:text-slate-300">
                   Error details
                 </span>
                 <button
@@ -92,8 +94,8 @@ export default class ErrorBoundary extends React.Component {
                   <span className="hidden sm:inline ml-1">Copy</span>
                 </button>
               </div>
-              <div className="rounded-md border border-slate-200 bg-slate-50 max-h-32 overflow-auto p-3">
-                <pre className="text-xs font-mono text-red-700 whitespace-pre-wrap break-words">
+              <div className="rounded-md border border-slate-200 bg-slate-50 max-h-32 overflow-auto p-3 dark:border-slate-700 dark:bg-slate-900">
+                <pre className="text-xs font-mono text-red-700 whitespace-pre-wrap break-words dark:text-red-300">
                   {String(this.state.error)}
                 </pre>
               </div>
@@ -101,10 +103,10 @@ export default class ErrorBoundary extends React.Component {
 
             {/* Suggestions */}
             <div className="mb-6">
-              <p className="text-xs font-medium text-slate-700 uppercase tracking-wide mb-2">
+              <p className="text-xs font-medium text-slate-700 uppercase tracking-wide mb-2 dark:text-slate-300">
                 What you can try
               </p>
-              <ul className="space-y-1.5 text-sm text-slate-600 list-disc list-inside">
+              <ul className="space-y-1.5 text-sm text-slate-600 list-disc list-inside dark:text-slate-300">
                 <li>Refresh the page.</li>
                 <li>Check your internet connection.</li>
                 <li>Make sure the backend server is running.</li>
@@ -158,10 +160,10 @@ export default class ErrorBoundary extends React.Component {
             </div>
 
             {/* Footer */}
-            <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+            <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
               <span>Release Notes Automation Tool</span>
               <span className="flex items-center gap-1">
-                <span className="inline-block w-2 h-2 rounded-full bg-red-500" />
+                <span className="inline-block w-2 h-2 rounded-full bg-red-500 dark:bg-red-400" />
                 <span>Error state</span>
               </span>
             </div>

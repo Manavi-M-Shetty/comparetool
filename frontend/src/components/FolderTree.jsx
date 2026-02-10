@@ -1,7 +1,7 @@
 // frontend/src/components/FolderTree.jsx
 /**
  * Hierarchical folder/file tree component for displaying comparison results.
- * 
+ *
  * Features:
  * - Expandable folder structure
  * - Visual status indicators (modified, new, deleted)
@@ -88,19 +88,22 @@ function StatusBadge({ status }) {
   const configs = {
     missing: {
       label: 'DELETED',
-      className: 'bg-red-100 text-red-800 border-red-300',
-      dot: 'bg-red-500',
+      className:
+        'bg-red-100 text-red-800 border-red-300 dark:bg-red-900/40 dark:text-red-200 dark:border-red-700',
+      dot: 'bg-red-500 dark:bg-red-400',
     },
     new: {
       label: 'NEW',
-      className: 'bg-purple-100 text-purple-800 border-purple-300',
-      dot: 'bg-purple-500',
+      className:
+        'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/40 dark:text-purple-200 dark:border-purple-700',
+      dot: 'bg-purple-500 dark:bg-purple-400',
     },
     // modified highlight (amber/orange)
     modified: {
       label: 'MODIFIED',
-      className: 'bg-amber-100 text-amber-800 border-amber-300',
-      dot: 'bg-amber-500',
+      className:
+        'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-700',
+      dot: 'bg-amber-500 dark:bg-amber-400',
     },
     identical: {
       label: null,
@@ -113,7 +116,7 @@ function StatusBadge({ status }) {
   if (!config || !config.label) {
     return (
       <svg
-        className="w-3.5 h-3.5 text-slate-500"
+        className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -140,7 +143,9 @@ function StatusBadge({ status }) {
 
 // Folder Icon Component
 function FolderIcon({ isOpen, hasChanges }) {
-  const color = hasChanges ? 'text-purple-600' : 'text-slate-500';
+  const color = hasChanges
+    ? 'text-purple-600 dark:text-purple-400'
+    : 'text-slate-500 dark:text-slate-400';
   if (isOpen) {
     return (
       <svg
@@ -176,7 +181,7 @@ export default function FolderTree({
   missingOldFiles = [],
   missingNewFiles = [],
   validationMap = {},
-  onToggleValidation = () => {},
+  onToggleValidation = () => { },
 }) {
   const [expandedFolders, setExpandedFolders] = useState(new Set());
 
@@ -217,27 +222,27 @@ export default function FolderTree({
   const getStatusConfig = (status) => {
     const configs = {
       missing: {
-        iconColor: 'text-red-600',
-        hoverBg: 'hover:bg-red-50',
-        textColor: 'text-red-700',
-        activeBg: 'bg-red-50',
+        iconColor: 'text-red-600 dark:text-red-400',
+        hoverBg: 'hover:bg-red-50 dark:hover:bg-red-900/30',
+        textColor: 'text-red-700 dark:text-red-300',
+        activeBg: 'bg-red-50 dark:bg-red-900/30',
       },
       new: {
-        iconColor: 'text-purple-600',
-        hoverBg: 'hover:bg-purple-50',
-        textColor: 'text-purple-700',
-        activeBg: 'bg-purple-50',
+        iconColor: 'text-purple-600 dark:text-purple-400',
+        hoverBg: 'hover:bg-purple-50 dark:hover:bg-purple-900/30',
+        textColor: 'text-purple-700 dark:text-purple-300',
+        activeBg: 'bg-purple-50 dark:bg-purple-900/30',
       },
       modified: {
-        iconColor: 'text-amber-600',
-        hoverBg: 'hover:bg-amber-50',
-        textColor: 'text-amber-700',
-        activeBg: 'bg-amber-50',
+        iconColor: 'text-amber-600 dark:text-amber-400',
+        hoverBg: 'hover:bg-amber-50 dark:hover:bg-amber-900/30',
+        textColor: 'text-amber-700 dark:text-amber-300',
+        activeBg: 'bg-amber-50 dark:bg-amber-900/30',
       },
       identical: {
-        iconColor: 'text-slate-500',
-        hoverBg: 'hover:bg-slate-50',
-        textColor: 'text-slate-700',
+        iconColor: 'text-slate-500 dark:text-slate-300',
+        hoverBg: 'hover:bg-slate-50 dark:hover:bg-slate-800',
+        textColor: 'text-slate-700 dark:text-slate-200',
         activeBg: '',
       },
     };
@@ -246,10 +251,10 @@ export default function FolderTree({
 
   if (!tree) {
     return (
-      <div className="flex flex-col items-center justify-center h-40 text-center px-4">
-        <div className="p-3 rounded-full bg-purple-50 text-purple-600 mb-3 border border-purple-100">
+      <div className="flex h-40 flex-col items-center justify-center px-4 text-center">
+        <div className="mb-3 rounded-full border border-purple-100 bg-purple-50 p-3 text-purple-600 dark:border-purple-800 dark:bg-purple-900/40 dark:text-purple-200">
           <svg
-            className="w-6 h-6"
+            className="h-6 w-6"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -262,7 +267,9 @@ export default function FolderTree({
             />
           </svg>
         </div>
-        <p className="text-xs text-slate-500">No matched files found</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          No matched files found
+        </p>
       </div>
     );
   }
@@ -313,19 +320,20 @@ export default function FolderTree({
       <div
         key={i}
         className={`
-          group relative flex items-center gap-2 px-2 py-1.5 rounded-md
+          group relative flex items-center gap-2 rounded-md px-2 py-1.5
           cursor-pointer transition-colors
           ${config.hoverBg} ${status === 'missing' ? config.activeBg : ''}
-          border border-transparent hover:border-purple-300
+          border border-transparent hover:border-purple-300 dark:hover:border-purple-500
         `}
         onClick={() => onFileSelect && onFileSelect(fd)}
       >
         {/* Left accent line for modified/missing */}
         {(status === 'modified' || status === 'missing') && (
           <div
-            className={`absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full ${
-              status === 'modified' ? 'bg-amber-500' : 'bg-red-500'
-            }`}
+            className={`absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full ${status === 'modified'
+                ? 'bg-amber-500 dark:bg-amber-400'
+                : 'bg-red-500 dark:bg-red-400'
+              }`}
           />
         )}
 
@@ -334,7 +342,7 @@ export default function FolderTree({
 
         {/* File Name */}
         <span
-          className={`flex-1 text-xs truncate ${config.textColor}`}
+          className={`flex-1 truncate text-xs ${config.textColor}`}
           title={fd.file_name}
         >
           {fd.file_name}
@@ -354,22 +362,21 @@ export default function FolderTree({
                 onChange={(e) =>
                   onToggleValidation(filePath, e.target.checked)
                 }
-                className="sr-only peer"
+                className="peer sr-only"
               />
               <div
                 className={`
-                  w-4 h-4 rounded border-2 flex items-center justify-center
-                  transition-colors cursor-pointer
-                  ${
-                    validated
-                      ? 'bg-purple-600 border-purple-500'
-                      : 'bg-transparent border-slate-400 hover:border-purple-500'
+                  flex h-4 w-4 cursor-pointer items-center justify-center rounded border-2
+                  transition-colors
+                  ${validated
+                    ? 'bg-purple-600 border-purple-500 dark:bg-purple-500 dark:border-purple-400'
+                    : 'bg-transparent border-slate-400 hover:border-purple-500 dark:border-slate-500 dark:hover:border-purple-400'
                   }
                 `}
               >
                 {validated && (
                   <svg
-                    className="w-2.5 h-2.5 text-white"
+                    className="h-2.5 w-2.5 text-white"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -407,15 +414,14 @@ export default function FolderTree({
         <div
           onClick={() => toggleFolder(node.path)}
           className={`
-            group flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer
-            transition-colors hover:bg-slate-50
+            group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5
+            transition-colors hover:bg-slate-50 dark:hover:bg-slate-800
           `}
         >
           {/* Chevron */}
           <svg
-            className={`w-3 h-3 text-slate-500 transition-transform ${
-              isOpen ? 'rotate-90' : ''
-            }`}
+            className={`h-3 w-3 text-slate-500 transition-transform dark:text-slate-400 ${isOpen ? 'rotate-90' : ''
+              }`}
             fill="currentColor"
             viewBox="0 0 20 20"
           >
@@ -431,16 +437,18 @@ export default function FolderTree({
 
           {/* Folder Name */}
           <span
-            className={`flex-1 text-xs font-medium truncate ${
-              hasChanges ? 'text-purple-700' : 'text-slate-700'
-            }`}
+            className={`flex-1 truncate text-xs font-medium ${hasChanges
+                ? 'text-purple-700 dark:text-purple-300'
+                : 'text-slate-700 dark:text-slate-200'
+              }`}
+            title={node.name}
           >
             {node.name}
           </span>
 
           {/* Change Count Badge */}
           {changeCount > 0 && (
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+            <span className="rounded-full border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[9px] font-bold text-purple-700 dark:border-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
               {changeCount}
             </span>
           )}
@@ -448,7 +456,7 @@ export default function FolderTree({
 
         {/* Folder Contents */}
         {isOpen && (
-          <div className="ml-3 pl-3 border-l border-slate-200 space-y-0.5 mt-0.5">
+          <div className="mt-0.5 ml-3 space-y-0.5 border-l border-slate-200 pl-3 dark:border-slate-700">
             {/* Files */}
             {(node.files || []).map((fd, i) => {
               if (
@@ -478,10 +486,10 @@ export default function FolderTree({
     return (
       <div className="mb-4">
         <details className="group" open>
-          <summary className="flex items-center gap-2 px-2 py-2.5 rounded-md cursor-pointer list-none bg-slate-50 border border-purple-200 hover:bg-slate-100">
+          <summary className="flex list-none items-center gap-2 rounded-md border border-purple-200 bg-slate-50 px-2 py-2.5 hover:bg-slate-100 dark:border-purple-700 dark:bg-slate-900 dark:hover:bg-slate-800">
             {/* Chevron */}
             <svg
-              className="w-3 h-3 text-purple-500 transition-transform group-open:rotate-90"
+              className="h-3 w-3 text-purple-500 transition-transform group-open:rotate-90 dark:text-purple-300"
               fill="currentColor"
               viewBox="0 0 20 20"
             >
@@ -493,9 +501,9 @@ export default function FolderTree({
             </svg>
 
             {/* Icon */}
-            <div className="p-1 rounded-md bg-purple-50 text-purple-700">
+            <div className="rounded-md bg-purple-50 p-1 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
               <svg
-                className="w-3.5 h-3.5"
+                className="h-3.5 w-3.5"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -510,17 +518,17 @@ export default function FolderTree({
             </div>
 
             {/* Title */}
-            <span className="flex-1 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+            <span className="flex-1 text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-200">
               New files
             </span>
 
             {/* Count */}
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+            <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-purple-700 dark:border-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
               {missingNewFiles.length}
             </span>
           </summary>
 
-          <div className="mt-2 ml-2 pl-3 border-l border-slate-200 space-y-1 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-300">
+          <div className="mt-2 ml-2 max-h-48 space-y-1 overflow-y-auto border-l border-slate-200 pl-3 scrollbar-thin scrollbar-thumb-purple-300 dark:border-slate-700 dark:scrollbar-thumb-purple-500">
             {missingNewFiles.map((m, idx) => {
               const validated = validationMap[m.file_path] || false;
               const fileName = getFileName(m.file_path);
@@ -528,7 +536,7 @@ export default function FolderTree({
               return (
                 <div
                   key={idx}
-                  className="group flex items-center gap-2 px-2 py-2 rounded-md hover:bg-slate-100 cursor-pointer transition-colors"
+                  className="group flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
                   onClick={() =>
                     onFileSelect &&
                     onFileSelect({
@@ -544,7 +552,7 @@ export default function FolderTree({
                 >
                   {/* Icon */}
                   <svg
-                    className="w-4 h-4 text-purple-600"
+                    className="h-4 w-4 text-purple-600 dark:text-purple-400"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -558,11 +566,11 @@ export default function FolderTree({
                   </svg>
 
                   {/* File Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-slate-800 truncate">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-slate-800 truncate dark:text-slate-100" title={fileName}>
                       {fileName}
                     </p>
-                    <p className="text-[9px] text-slate-500 truncate">
+                    <p className="truncate text-[9px] text-slate-500 dark:text-slate-400">
                       {m.component_name}
                     </p>
                   </div>
@@ -582,18 +590,17 @@ export default function FolderTree({
                     />
                     <div
                       className={`
-                        w-4 h-4 rounded border-2 flex items-center justify-center
-                        transition-colors cursor-pointer
-                        ${
-                          validated
-                            ? 'bg-purple-600 border-purple-500'
-                            : 'bg-transparent border-slate-400 hover:border-purple-500'
+                        flex h-4 w-4 cursor-pointer items-center justify-center rounded border-2
+                        transition-colors
+                        ${validated
+                          ? 'bg-purple-600 border-purple-500 dark:bg-purple-500 dark:border-purple-400'
+                          : 'bg-transparent border-slate-400 hover:border-purple-500 dark:border-slate-500 dark:hover:border-purple-400'
                         }
                       `}
                     >
                       {validated && (
                         <svg
-                          className="w-2.5 h-2.5 text-white"
+                          className="h-2.5 w-2.5 text-white"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -610,7 +617,7 @@ export default function FolderTree({
                   </label>
 
                   {/* Badge */}
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                  <span className="rounded-full border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[9px] font-bold text-purple-700 dark:border-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
                     NEW
                   </span>
                 </div>
@@ -623,7 +630,7 @@ export default function FolderTree({
   };
 
   return (
-    <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-transparent pb-20">
+    <div className="h-full pb-20">
       {/* New Files Section */}
       {renderOnlyInNew()}
 

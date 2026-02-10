@@ -1,15 +1,15 @@
 // frontend/src/context/ComparisonContext.jsx
 /**
  * Global comparison application state management.
- * 
+ *
  * This context manages:
- * - File paths for old/new folders and Excel workbook
+ * - File paths for baseline/comparison folders and Excel workbook
  * - Comparison results (folder structure and diffs)
  * - User interactions: comments, validations, edited files
  * - Workspace and environment/server selection
- * - Session persistence (localStorage-backed)
- * 
- * Session persistence is per-workspace-per-environment-per-server:
+ * - Session persistence (localStorage‑backed)
+ *
+ * Session persistence is per‑workspace‑per‑environment‑per‑server:
  * - Saves state to localStorage when values change
  * - Restores state when workspace/env/server selection changes
  * - Automatically saves every 30 seconds and on browser unload
@@ -34,8 +34,10 @@ import {
   updateWorkspace as apiUpdateWorkspace,
 } from '../utils/api';
 
-// localStorage key prefix for persisting session data
+// localStorage key prefixes
 const SESSION_PREFIX = 'compare_session_v1_';
+const LAST_ENV_PREFIX = 'compare_last_env_';
+const LAST_SERVER_PREFIX = 'compare_last_server_';
 
 const ComparisonContext = createContext(null);
 export const useComparison = () => useContext(ComparisonContext);
@@ -66,7 +68,7 @@ export function ComparisonProvider({ children }) {
   const [currentWorkspace, setCurrentWorkspace] = useState(null);
   const [workspaces, setWorkspaces] = useState([]);
 
-  // 🧩 current environment & server (your “active unit”)
+  // current environment & server (active unit)
   const [selectedEnv, setSelectedEnv] = useState('');
   const [selectedServer, setSelectedServer] = useState('');
 
@@ -83,8 +85,7 @@ export function ComparisonProvider({ children }) {
     if (!workspaceName) return;
     const key = getSessionKey(workspaceName, envName, serverName);
     const obj =
-      dataOverride ||
-      {
+      dataOverride || {
         oldFolder,
         newFolder,
         excelPath,
@@ -107,13 +108,14 @@ export function ComparisonProvider({ children }) {
     if (savedWs) {
       selectWorkspace(savedWs);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-   useEffect(() => {
+  // Restore session per workspace + env + server
+  useEffect(() => {
     if (!currentWorkspace) return;
 
     // Only restore when BOTH environment and server are selected.
-    // This prevents an intermediate restore for [ - / - ].
     if (!selectedEnv || !selectedServer) {
       return;
     }
@@ -168,61 +170,6 @@ export function ComparisonProvider({ children }) {
       );
     }
   }, [currentWorkspace?.name, selectedEnv, selectedServer]);
-  
-  // Restore session per workspace + env + server
-  useEffect(() => {
-    if (!currentWorkspace) return;
-
-    try {
-      const key = getSessionKey(
-        currentWorkspace.name,
-        selectedEnv,
-        selectedServer
-      );
-      const raw = localStorage.getItem(key);
-
-      if (raw) {
-        const obj = JSON.parse(raw);
-
-        setOldFolder(obj.oldFolder ?? '');
-        setNewFolder(obj.newFolder ?? '');
-        setExcelPath(obj.excelPath ?? '');
-        setFolderResult(obj.folderResult || null);
-        setMissingValidations(obj.missingValidations || {});
-        setComments(obj.comments || {});
-        setEditedFiles(obj.editedFiles || {});
-        setSelectedFile(null);
-        setRestored(true);
-        setStatus({
-          type: 'info',
-          message: `Restored session for ${currentWorkspace.name} [${selectedEnv || '-'} / ${selectedServer || '-'}]`,
-        });
-      } else {
-        // Fresh state for this server
-        setOldFolder('');
-        setNewFolder('');
-        setExcelPath('');
-        setFolderResult(null);
-        setMissingValidations({});
-        setComments({});
-        setEditedFiles({});
-        setSelectedFile(null);
-        setRestored(false);
-        setStatus({
-          type: 'info',
-          message: `Ready for ${currentWorkspace.name} [${selectedEnv || '-'} / ${selectedServer || '-'}]`,
-        });
-      }
-    } catch (e) {
-      console.warn(
-        'Failed to restore session for',
-        currentWorkspace?.name,
-        selectedEnv,
-        selectedServer,
-        e
-      );
-    }
-  }, [currentWorkspace?.name, selectedEnv, selectedServer]);
 
   // Auto-save per workspace + env + server every 30s AND immediately on any change
   useEffect(() => {
@@ -255,7 +202,7 @@ export function ComparisonProvider({ children }) {
       }
     };
 
-    // ⏱ save immediately whenever dependencies change
+    // save immediately whenever dependencies change
     save();
     saveTimer.current = setInterval(save, 30_000);
 
@@ -477,9 +424,22 @@ export function ComparisonProvider({ children }) {
           selectedServer
         );
       }
+
       const ws = await getWorkspace(name);
       setCurrentWorkspace(ws);
       localStorage.setItem('current_workspace', name);
+
+      // restore last env/server for this workspace
+      try {
+        const savedEnv =
+          localStorage.getItem(`${LAST_ENV_PREFIX}${name}`) || '';
+        const savedServer =
+          localStorage.getItem(`${LAST_SERVER_PREFIX}${name}`) || '';
+        setSelectedEnv(savedEnv);
+        setSelectedServer(savedServer);
+      } catch {
+        // ignore
+      }
     } catch (e) {
       setStatus({
         type: 'error',
@@ -501,6 +461,20 @@ export function ComparisonProvider({ children }) {
         selectedEnv,
         selectedServer
       );
+
+      // persist last selected env/server per workspace
+      try {
+        localStorage.setItem(
+          `${LAST_ENV_PREFIX}${currentWorkspace.name}`,
+          envName || ''
+        );
+        localStorage.setItem(
+          `${LAST_SERVER_PREFIX}${currentWorkspace.name}`,
+          serverName || ''
+        );
+      } catch {
+        // ignore
+      }
     }
     setSelectedEnv(envName || '');
     setSelectedServer(serverName || '');
@@ -513,6 +487,12 @@ export function ComparisonProvider({ children }) {
       // Remove all sessions for this workspace (all env/server combinations)
       Object.keys(localStorage).forEach((key) => {
         if (key.startsWith(`${SESSION_PREFIX}${name}__`)) {
+          localStorage.removeItem(key);
+        }
+        if (key === `${LAST_ENV_PREFIX}${name}`) {
+          localStorage.removeItem(key);
+        }
+        if (key === `${LAST_SERVER_PREFIX}${name}`) {
           localStorage.removeItem(key);
         }
       });
