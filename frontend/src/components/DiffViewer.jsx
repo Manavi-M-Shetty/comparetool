@@ -177,191 +177,237 @@ const DiffViewer = forwardRef(function DiffViewer(
 
   const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
-  useImperativeHandle(ref, () => ({
-    async captureScreenshot(options = {}) {
-      const lowerPath = (filePath || '').toLowerCase();
-      const isConfigFile =
-        lowerPath.includes('/configs/') || lowerPath.includes('\\configs\\');
+useImperativeHandle(ref, () => ({
+  async captureScreenshot(options = {}) {
+    const lowerPath = (filePath || '').toLowerCase();
+    const isConfigFile =
+      lowerPath.includes('/configs/') || lowerPath.includes('\\configs\\');
 
-      if (!excelPath) {
-        if (!options.silent)
-          alert('Excel path not set. Cannot save screenshot.');
-        return;
+    // Basic guards
+    if (!excelPath) {
+      if (!options.silent) {
+        alert('Excel path not set. Cannot save screenshot.');
       }
-      if (!isConfigFile) {
-        if (!options.silent)
-          alert(
-            'Current file is not under a Configs folder; screenshot skipped.'
+      return;
+    }
+
+    if (!isConfigFile) {
+      if (!options.silent) {
+        alert(
+          'Current file is not under a Configs folder; screenshot skipped.'
+        );
+      }
+      return;
+    }
+
+    const diffEl = diffRef.current;
+    if (!diffEl) {
+      console.warn('Diff DOM not ready for screenshot.');
+      return;
+    }
+
+    try {
+      // 1️⃣ Find cells that represent changes (added / removed / changed)
+      const findChangedCellsWithRetry = async (
+        retries = 4,
+        interval = 250
+      ) => {
+        for (let attempt = 0; attempt < retries; attempt++) {
+          const cells = diffEl.querySelectorAll(
+            '[class*="diff-added"], [class*="diff-removed"], [class*="diff-changed"]'
           );
-        return;
-      }
-      if (!diffRef.current) {
-        console.warn('Diff DOM not ready for screenshot.');
-        return;
-      }
-
-      try {
-        const diffEl = diffRef.current;
-
-        const findChangedCellsWithRetry = async (
-          retries = 3,
-          interval = 300
-        ) => {
-          for (let attempt = 0; attempt < retries; attempt++) {
-            const cells = diffEl.querySelectorAll(
-              '[class*="diff-added"], [class*="diff-removed"], [class*="diff-changed"]'
-            );
-            if (cells && cells.length > 0) return cells;
-            await delay(interval);
-          }
-          return [];
-        };
-
-        const changedCells = await findChangedCellsWithRetry();
-        if (!changedCells || changedCells.length === 0) {
-          if (!options.silent)
-            alert('No highlighted differences found to capture.');
-          return;
+          if (cells && cells.length > 0) return Array.from(cells);
+          await delay(interval);
         }
+        return [];
+      };
 
-        const table = diffEl.querySelector('table');
-        if (!table) {
-          if (!options.silent)
-            alert('Diff table not found; cannot capture screenshot.');
-          return;
-        }
+      const changedCells = await findChangedCellsWithRetry();
 
-        const allRows = Array.from(table.querySelectorAll('tr'));
-        const rowIndexSet = new Set();
-
-        changedCells.forEach((cell) => {
-          const row = cell.closest('tr');
-          if (!row) return;
-          const idx = allRows.indexOf(row);
-          if (idx === -1) return;
-          rowIndexSet.add(idx);
-          if (idx > 0) rowIndexSet.add(idx - 1);
-          if (idx < allRows.length - 1) rowIndexSet.add(idx + 1);
-        });
-
-        const indices = Array.from(rowIndexSet).sort((a, b) => a - b);
-        if (!indices.length) {
-          if (!options.silent)
-            alert('No highlighted differences found to capture.');
-          return;
-        }
-
-        const tempContainer = document.createElement('div');
-        tempContainer.style.position = 'fixed';
-        tempContainer.style.left = '-10000px';
-        tempContainer.style.top = '0';
-        tempContainer.style.background = '#ffffff';
-        tempContainer.style.color = '#111827';
-        tempContainer.style.padding = '10px';
-        tempContainer.style.boxSizing = 'border-box';
-
-        const CAPTURE_WIDTH = 1500;
-        tempContainer.style.width = `${CAPTURE_WIDTH}px`;
-
-        const tempTable = document.createElement('table');
-        tempTable.className = table.className;
-        tempTable.style.borderCollapse = 'collapse';
-        tempTable.style.width = '100%';
-        tempTable.style.tableLayout = 'fixed';
-        tempTable.style.fontFamily =
-          '"Consolas","Menlo","Courier New",monospace';
-        tempTable.style.fontSize = '11px';
-        tempTable.style.lineHeight = '1.3';
-
-        indices.forEach((idx) => {
-          const cloneRow = allRows[idx].cloneNode(true);
-          cloneRow.querySelectorAll('td, th').forEach((cell) => {
-            cell.style.padding = '2px 6px';
-            const className = (cell.className || '').toLowerCase();
-            if (className.includes('gutter')) {
-              cell.style.whiteSpace = 'nowrap';
-              cell.style.wordBreak = 'keep-all';
-              cell.style.minWidth = '30px';
-              cell.style.width = '1%';
-              cell.style.textAlign = 'right';
-            } else {
-              cell.style.wordBreak = 'break-word';
-              cell.style.whiteSpace = 'pre-wrap';
-            }
-            const computedStyle = window.getComputedStyle(cell);
-            cell.style.backgroundColor = computedStyle.backgroundColor;
-            cell.style.color = computedStyle.color;
-            cell.style.borderBottom =
-              '1px solid rgba(148, 163, 184, 0.4)';
-          });
-          tempTable.appendChild(cloneRow);
-        });
-
-        tempContainer.appendChild(tempTable);
-        document.body.appendChild(tempContainer);
-
-        try {
-          if (document.fonts && document.fonts.ready) {
-            await document.fonts.ready;
-          }
-        } catch {
-          // ignore
-        }
-        await new Promise((res) =>
-          requestAnimationFrame(() => requestAnimationFrame(res))
-        );
-
-        const canvas = await html2canvas(tempContainer, {
-          backgroundColor: '#ffffff',
-          scale: 1.2,
-          width: CAPTURE_WIDTH,
-          windowWidth: CAPTURE_WIDTH,
-        });
-
-        document.body.removeChild(tempContainer);
-
-        const blob = await new Promise((resolve, reject) => {
-          canvas.toBlob((b) => {
-            if (!b)
-              return reject(
-                new Error('Failed to convert canvas to Blob')
-              );
-            resolve(b);
-          }, 'image/png');
-        });
-
-        if (!blob || blob.size === 0)
-          throw new Error('Screenshot blob is empty');
-
-        const componentName = getComponentName(filePath);
-
-        const resp = await uploadDiffScreenshot(
-          excelPath,
-          fileName || 'diff',
-          blob,
-          componentName,
-          serverName || ''
-        );
-
-        if (!options.silent)
-          alert(resp.message || 'Screenshot added to Excel.');
-      } catch (err) {
-        console.warn('Error capturing diff screenshot:', err);
-
-        const backendMessage =
-          err?.response?.data?.detail ||
-          err?.response?.data?.message ||
-          err?.message ||
-          'Failed to capture screenshot.';
-
+      const table = diffEl.querySelector('table');
+      if (!table) {
         if (!options.silent) {
-          alert(backendMessage);
+          alert('Diff table not found; cannot capture screenshot.');
+        }
+        return;
+      }
+
+      const allRows = Array.from(table.querySelectorAll('tr'));
+
+      // 2️⃣ Build a set of row indices to include:
+      //    - each changed row
+      //    - row above it (if exists AND this isn't line 1)
+      //    - row below it (if exists)
+      const rowIndexSet = new Set();
+
+      changedCells.forEach((cell) => {
+        const row = cell.closest('tr');
+        if (!row) return;
+        const idx = allRows.indexOf(row);
+        if (idx === -1) return;
+
+        // Detect whether this row is line 1 (first code line)
+        const lineNumbers = Array.from(row.querySelectorAll('td'))
+          .map((td) => (td.textContent || '').trim())
+          .filter((txt) => /^\d+$/.test(txt))
+          .map((txt) => Number(txt));
+
+        const isFirstLineRow = lineNumbers.some((n) => n === 1);
+
+        // current row
+        rowIndexSet.add(idx);
+
+        // one row above, only if it exists AND this isn't the first code line
+        if (!isFirstLineRow && idx > 0) {
+          rowIndexSet.add(idx - 1);
         }
 
-        throw new Error(backendMessage);
+        // one row below, only if it exists
+        if (idx < allRows.length - 1) {
+          rowIndexSet.add(idx + 1);
+        }
+      });
+
+      // Convert to a sorted array of indices in DOM order
+      let indices = Array.from(rowIndexSet).sort((a, b) => a - b);
+
+      // If we somehow didn't find anything, fall back to full table
+      if (indices.length === 0) {
+        indices = allRows.map((_, i) => i);
       }
-    },
-  }));
+
+      // 3️⃣ Build a minimal invisible table with just those rows
+      const CAPTURE_WIDTH = 1500;
+
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'fixed';
+      tempContainer.style.left = '-10000px';
+      tempContainer.style.top = '0';
+      tempContainer.style.background = '#ffffff';
+      tempContainer.style.color = '#111827';
+      tempContainer.style.padding = '10px';
+      tempContainer.style.boxSizing = 'border-box';
+      tempContainer.style.width = `${CAPTURE_WIDTH}px`;
+
+      const tempTable = document.createElement('table');
+      tempTable.className = table.className;
+      tempTable.style.borderCollapse = 'collapse';
+      tempTable.style.width = '100%';
+      tempTable.style.tableLayout = 'fixed';
+      tempTable.style.fontFamily =
+        '"Consolas","Menlo","Courier New",monospace';
+      tempTable.style.fontSize = '11px';
+      tempTable.style.lineHeight = '1.3';
+
+      indices.forEach((idx) => {
+        const row = allRows[idx];
+        if (!row) return;
+        const cloneRow = row.cloneNode(true);
+
+        cloneRow.querySelectorAll('td, th').forEach((cell) => {
+          cell.style.padding = '2px 6px';
+
+          const className = (cell.className || '').toLowerCase();
+          if (className.includes('gutter')) {
+            // line number / gutter column
+            cell.style.whiteSpace = 'nowrap';
+            cell.style.wordBreak = 'keep-all';
+            cell.style.minWidth = '30px';
+            cell.style.width = '1%';
+            cell.style.textAlign = 'right';
+          } else {
+            // code column
+            cell.style.wordBreak = 'break-word';
+            cell.style.whiteSpace = 'pre-wrap';
+          }
+
+          // copy computed background and text color to preserve diff styling
+          const computed = window.getComputedStyle(cell);
+          cell.style.backgroundColor = computed.backgroundColor;
+          cell.style.color = computed.color;
+          cell.style.borderBottom =
+            '1px solid rgba(148, 163, 184, 0.4)'; // slate-400 @ 40%
+        });
+
+        tempTable.appendChild(cloneRow);
+      });
+
+      tempContainer.appendChild(tempTable);
+      document.body.appendChild(tempContainer);
+
+      // 4️⃣ Wait for fonts/layout to settle, then capture
+      try {
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready;
+        }
+      } catch {
+        // ignore
+      }
+
+      await new Promise((res) =>
+        requestAnimationFrame(() => requestAnimationFrame(res))
+      );
+
+      const canvas = await html2canvas(tempContainer, {
+        backgroundColor: '#ffffff',
+        scale: 1.2,
+        width: CAPTURE_WIDTH,
+        windowWidth: CAPTURE_WIDTH,
+      });
+
+      document.body.removeChild(tempContainer);
+
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((b) => {
+          if (!b) {
+            return reject(
+              new Error('Failed to convert canvas to Blob')
+            );
+          }
+          resolve(b);
+        }, 'image/png');
+      });
+
+      if (!blob || blob.size === 0) {
+        throw new Error('Screenshot blob is empty');
+      }
+
+      const componentName = getComponentName(filePath);
+
+      const resp = await uploadDiffScreenshot(
+        excelPath,
+        fileName || 'diff',
+        blob,
+        componentName,
+        serverName || ''
+      );
+
+      if (!options.silent) {
+        alert(resp.message || 'Screenshot added to Excel.');
+      }
+    } catch (err) {
+      console.warn('Error capturing diff screenshot:', err);
+
+      const backendMessage =
+        (err &&
+          err.response &&
+          err.response.data &&
+          err.response.data.detail) ||
+        (err &&
+          err.response &&
+          err.response.data &&
+          err.response.data.message) ||
+        err?.message ||
+        'Failed to capture screenshot.';
+
+      if (!options.silent) {
+        alert(backendMessage);
+      }
+
+      throw new Error(backendMessage);
+    }
+  },
+}));
 
   const savedComments = (comments || []).filter(
     (c) => c.comment && c.comment.trim()

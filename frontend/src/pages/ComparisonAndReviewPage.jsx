@@ -296,7 +296,7 @@ export default function ComparisonAndReviewPage() {
       expectedSelectedFileRef.current &&
       selectedFile &&
       getFileKey(selectedFile) ===
-      getFileKey(expectedSelectedFileRef.current)
+        getFileKey(expectedSelectedFileRef.current)
     ) {
       if (selectedFilePromiseRef.current) {
         selectedFilePromiseRef.current();
@@ -545,121 +545,140 @@ export default function ComparisonAndReviewPage() {
     }
   };
 
-  const handleCaptureAllConfigs = async () => {
-    if (!cleanedExcelPath) {
-      setStatus({ type: 'error', message: 'Excel path not set' });
-      return;
-    }
-    if (!folderResult || !folderResult.file_summaries) {
-      setStatus({
-        type: 'error',
-        message: 'No comparison data available.',
-      });
-      return;
-    }
-
-    const allSummaries = folderResult.file_summaries;
-    const configModifiedFiles = allSummaries.filter((fs) => {
-      const path = (fs.new_path || fs.old_path || '').toLowerCase();
-      const isConfig =
-        path.includes('/configs/') || path.includes('\\configs\\');
-      const isMissingOnly =
-        fs.summary === 'Missing in NEW' || fs.summary === 'Missing in OLD';
-      const isRealDiff = fs.has_changes && !isMissingOnly;
-      return isConfig && isRealDiff;
+const handleCaptureAllConfigs = async () => {
+  if (!cleanedExcelPath) {
+    setStatus({ type: 'error', message: 'Excel path not set' });
+    return;
+  }
+  if (!folderResult || !folderResult.file_summaries) {
+    setStatus({
+      type: 'error',
+      message: 'No comparison data available.',
     });
+    return;
+  }
 
-    if (configModifiedFiles.length === 0) {
-      setStatus({
-        type: 'info',
-        message: 'No modified files found under Configs.',
-      });
-      return;
-    }
+  const allSummaries = folderResult.file_summaries;
 
-    setCapturingAll(true);
-    let count = 0;
-    const total = configModifiedFiles.length;
+  // only config files with real diffs
+  const configModifiedFiles = allSummaries.filter((fs) => {
+    const path = (fs.new_path || fs.old_path || '').toLowerCase();
+    const isConfig =
+      path.includes('/configs/') || path.includes('\\configs\\');
+    const isMissingOnly =
+      fs.summary === 'Missing in NEW' || fs.summary === 'Missing in OLD';
+    const isRealDiff = fs.has_changes && !isMissingOnly;
+    return isConfig && isRealDiff;
+  });
 
-    setCaptureProgress({
-      isVisible: true,
-      currentFile: 'Initializing...',
-      progress: 0,
-      total,
-      current: 0,
+  if (configModifiedFiles.length === 0) {
+    setStatus({
+      type: 'info',
+      message: 'No modified files found under Configs.',
     });
+    return;
+  }
 
-    try {
-      for (const fs of configModifiedFiles) {
-        count++;
-        setCaptureProgress({
-          isVisible: true,
-          currentFile: fs.file_name,
-          progress: (count / total) * 100,
-          total,
-          current: count,
-        });
+  setCapturingAll(true);
+  let count = 0;
+  const total = configModifiedFiles.length;
 
-        const fileObj = {
-          file_name: fs.file_name,
-          old_path: fs.old_path,
-          new_path: fs.new_path,
-          component_name: fs.component_name,
-          summary: fs.summary,
-          has_changes: fs.has_changes,
-        };
+  setCaptureProgress({
+    isVisible: true,
+    currentFile: 'Initializing...',
+    progress: 0,
+    total,
+    current: 0,
+  });
 
-        readyResolveRef.current = null;
-        const readyPromise = new Promise((resolve) => {
-          readyResolveRef.current = resolve;
-        });
-        setDiffReady(false);
-        expectedSelectedFileRef.current = fileObj;
-        selectedFilePromiseRef.current = null;
-        const selectedPromise = new Promise((resolve) => {
-          selectedFilePromiseRef.current = resolve;
-        });
+  const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
-        setSelectedFile(fileObj);
-        await selectedPromise;
-        await loadFileDiff(fileObj);
-        await readyPromise;
+  // 🔁 Give React + DiffViewer a moment to settle before we touch anything
+  await delay(800);
 
-        if (diffViewerRef.current) {
-          try {
-            await diffViewerRef.current.captureScreenshot({ silent: true });
-            await new Promise((res) => setTimeout(res, 500));
-          } catch (err) {
-            console.error('Error capturing screenshot for', fs.file_name, err);
-            throw err;
-          }
+  try {
+    for (const fs of configModifiedFiles) {
+      count++;
+      setCaptureProgress({
+        isVisible: true,
+        currentFile: fs.file_name,
+        progress: (count / total) * 100,
+        total,
+        current: count,
+      });
+
+      const fileObj = {
+        file_name: fs.file_name,
+        old_path: fs.old_path,
+        new_path: fs.new_path,
+        component_name: fs.component_name,
+        summary: fs.summary,
+        has_changes: fs.has_changes,
+      };
+
+      // 1️⃣ Wait for selectedFile to actually become this file
+      expectedSelectedFileRef.current = fileObj;
+      selectedFilePromiseRef.current = null;
+      const selectedPromise = new Promise((resolve) => {
+        selectedFilePromiseRef.current = resolve;
+      });
+
+      setSelectedFile(fileObj);
+      await selectedPromise;
+
+      // 2️⃣ Set up a "ready" promise that will be resolved by DiffViewer.onReady
+      const readyPromise = new Promise((resolve) => {
+        readyResolveRef.current = resolve;
+      });
+      setDiffReady(false);
+
+      // 3️⃣ Load diff content (oldText/newText). This will trigger a render,
+      //     and after that render DiffViewer will call onReady -> readyResolveRef
+      await loadFileDiff(fileObj);
+
+      // 4️⃣ Wait until DiffViewer tells us that this specific diff is ready
+      await readyPromise;
+
+      // Give the browser a bit more time to fully paint this diff
+      await delay(300);
+
+      // 5️⃣ Capture screenshot
+      if (diffViewerRef.current) {
+        try {
+          await diffViewerRef.current.captureScreenshot({ silent: true });
+          // small gap between captures so we don't thrash the browser
+          await delay(400);
+        } catch (err) {
+          console.error('Error capturing screenshot for', fs.file_name, err);
+          throw err;
         }
       }
-
-      setCaptureProgress((prev) => ({ ...prev, progress: 100 }));
-      setStatus({
-        type: 'success',
-        message:
-          'Screenshots captured for all modified files under Configs.',
-      });
-      await new Promise((res) => setTimeout(res, 1500));
-    } catch (err) {
-      console.error('Error capturing screenshots for all configs:', err);
-      const msg =
-        err?.message ||
-        'Error capturing screenshots for all config files.';
-      setStatus({ type: 'error', message: msg });
-    } finally {
-      setCapturingAll(false);
-      setCaptureProgress({
-        isVisible: false,
-        currentFile: '',
-        progress: 0,
-        total: 0,
-        current: 0,
-      });
     }
-  };
+
+    setCaptureProgress((prev) => ({ ...prev, progress: 100 }));
+    setStatus({
+      type: 'success',
+      message:
+        'Screenshots captured for all modified files under Configs.',
+    });
+    await delay(1500);
+  } catch (err) {
+    console.error('Error capturing screenshots for all configs:', err);
+    const msg =
+      err?.message ||
+      'Error capturing screenshots for all config files.';
+    setStatus({ type: 'error', message: msg });
+  } finally {
+    setCapturingAll(false);
+    setCaptureProgress({
+      isVisible: false,
+      currentFile: '',
+      progress: 0,
+      total: 0,
+      current: 0,
+    });
+  }
+};
 
   const flattenedComments = useMemo(() => {
     if (!folderResult) return [];
@@ -912,8 +931,9 @@ export default function ComparisonAndReviewPage() {
           <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
             {/* Left: Explorer + comments */}
             <div
-              className={`transition-all duration-300 ${sidebarCollapsed ? 'w-12' : 'w-80'
-                } min-h-0`}
+              className={`transition-all duration-300 ${
+                sidebarCollapsed ? 'w-12' : 'w-80'
+              } min-h-0`}
             >
               <div className="glass-panel h-full flex flex-col overflow-hidden min-h-0">
                 {/* Sidebar header */}
@@ -944,8 +964,9 @@ export default function ComparisonAndReviewPage() {
                     className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-slate-700 dark:hover:bg-slate-800 dark:text-slate-300 dark:hover:text-slate-100"
                   >
                     <svg
-                      className={`w-4 h-4 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''
-                        }`}
+                      className={`w-4 h-4 transition-transform duration-300 ${
+                        sidebarCollapsed ? 'rotate-180' : ''
+                      }`}
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
