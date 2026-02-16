@@ -1,4 +1,14 @@
-// frontend/src/components/ProcessingOverlay.jsx
+/**
+ * Processing overlay component showing operation progress.
+ *
+ * Features:
+ * - Modal overlay with transparent backdrop
+ * - Current file name display
+ * - Progress counter (current/total files)
+ * - Animated spinner for loading state
+ * - Auto-dismisses on completion
+ */
+
 import React, { useEffect, useState } from 'react';
 
 export default function ProcessingOverlay({
@@ -23,8 +33,14 @@ export default function ProcessingOverlay({
   const isComplete = progress >= 100;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-100/80 dark:bg-slate-900/90">
-      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-6 py-6 shadow-lg text-slate-900 md:px-8 md:py-8 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-100/80 dark:bg-slate-900/90
+                 px-4 sm:px-6 py-4 sm:py-6 overflow-y-auto"
+    >
+      <div
+        className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8
+                   shadow-lg text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+      >
         {/* Icon + title */}
         <div className="mb-6 flex flex-col items-center">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border-4 border-purple-500/70 bg-slate-50 dark:bg-slate-900">
@@ -96,7 +112,7 @@ export default function ProcessingOverlay({
         </div>
 
         {/* Stats row */}
-        <div className="mb-2 flex items-center justify-between text-xs md:text-sm">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs md:text-sm">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 dark:border-slate-700 dark:bg-slate-800">
               <svg

@@ -101,31 +101,12 @@ export function ComparisonProvider({ children }) {
     }
   };
 
-  // Initial load: workspaces + last selected workspace
-  useEffect(() => {
-    loadWorkspaces();
-    const savedWs = localStorage.getItem('current_workspace');
-    if (savedWs) {
-      selectWorkspace(savedWs);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Restore session per workspace + env + server
-  useEffect(() => {
-    if (!currentWorkspace) return;
-
-    // Only restore when BOTH environment and server are selected.
-    if (!selectedEnv || !selectedServer) {
-      return;
-    }
+  // Helper: restore session from localStorage for a given workspace/env/server
+  const restoreSessionFor = (workspaceName, envName, serverName) => {
+    if (!workspaceName || !envName || !serverName) return;
 
     try {
-      const key = getSessionKey(
-        currentWorkspace.name,
-        selectedEnv,
-        selectedServer
-      );
+      const key = getSessionKey(workspaceName, envName, serverName);
       const raw = localStorage.getItem(key);
 
       if (raw) {
@@ -142,10 +123,10 @@ export function ComparisonProvider({ children }) {
         setRestored(true);
         setStatus({
           type: 'info',
-          message: `Restored session for ${currentWorkspace.name} [${selectedEnv} / ${selectedServer}]`,
+          message: `Restored session for ${workspaceName} [${envName} / ${serverName}]`,
         });
       } else {
-        // Fresh state for this specific server
+        // No saved session for this triplet: reset state
         setOldFolder('');
         setNewFolder('');
         setExcelPath('');
@@ -157,18 +138,36 @@ export function ComparisonProvider({ children }) {
         setRestored(false);
         setStatus({
           type: 'info',
-          message: `Ready for ${currentWorkspace.name} [${selectedEnv} / ${selectedServer}]`,
+          message: `Ready for ${workspaceName} [${envName} / ${serverName}]`,
         });
       }
     } catch (e) {
       console.warn(
         'Failed to restore session for',
-        currentWorkspace?.name,
-        selectedEnv,
-        selectedServer,
+        workspaceName,
+        envName,
+        serverName,
         e
       );
     }
+  };
+
+  // Initial load: workspaces + last selected workspace
+  useEffect(() => {
+    loadWorkspaces();
+    const savedWs = localStorage.getItem('current_workspace');
+    if (savedWs) {
+      selectWorkspace(savedWs);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Restore session per workspace + env + server when those change
+  useEffect(() => {
+    if (!currentWorkspace) return;
+    if (!selectedEnv || !selectedServer) return;
+
+    restoreSessionFor(currentWorkspace.name, selectedEnv, selectedServer);
   }, [currentWorkspace?.name, selectedEnv, selectedServer]);
 
   // Auto-save per workspace + env + server every 30s AND immediately on any change
@@ -398,15 +397,40 @@ export function ComparisonProvider({ children }) {
     }
   };
 
-  const createNewWorkspace = async (name) => {
-    console.log('Creating workspace:', name);
-    const ws = await createWorkspace(name, '', '', '');
-    console.log('Workspace created:', ws);
+    const createNewWorkspace = async (name, envName, serverName) => {
+    console.log('Creating workspace:', name, envName, serverName);
+
+    const trimmedEnv = (envName || '').trim();
+    const trimmedServer = (serverName || '').trim();
+
+    // Build initial environments array for API (if provided)
+    const initialEnvs =
+      trimmedEnv && trimmedServer
+        ? [{ name: trimmedEnv, servers: [{ name: trimmedServer }] }]
+        : [];
+
+    const ws = await createWorkspace(name, '', '', '', '', initialEnvs);
+
     setCurrentWorkspace(ws);
     setWorkspaces((prev) => [...prev, name]);
     localStorage.setItem('current_workspace', name);
 
-    // fresh paths for new workspace
+    // Set initial env/server selection and remember them
+    if (trimmedEnv && trimmedServer) {
+      try {
+        localStorage.setItem(`${LAST_ENV_PREFIX}${name}`, trimmedEnv);
+        localStorage.setItem(`${LAST_SERVER_PREFIX}${name}`, trimmedServer);
+      } catch {
+        // ignore
+      }
+      setSelectedEnv(trimmedEnv);
+      setSelectedServer(trimmedServer);
+    } else {
+      setSelectedEnv('');
+      setSelectedServer('');
+    }
+
+    // fresh paths
     setOldFolder('');
     setNewFolder('');
     setExcelPath('');
@@ -476,8 +500,15 @@ export function ComparisonProvider({ children }) {
         // ignore
       }
     }
+
+    // update state
     setSelectedEnv(envName || '');
     setSelectedServer(serverName || '');
+
+    // explicitly restore session right away for this selection
+    if (currentWorkspace && envName && serverName) {
+      restoreSessionFor(currentWorkspace.name, envName, serverName);
+    }
   };
 
   const deleteWorkspace = async (name) => {

@@ -28,8 +28,8 @@ import { useTheme } from '../context/ThemeContext';
 // Light + dark theme styles for ReactDiffViewer
 const diffStyles = {
   variables: {
-    light: { /* same as before */ },
-    dark:  { /* same as before */ },
+    light: {},
+    dark: {},
   },
   line: {
     padding: '2px 0',
@@ -177,237 +177,237 @@ const DiffViewer = forwardRef(function DiffViewer(
 
   const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
-useImperativeHandle(ref, () => ({
-  async captureScreenshot(options = {}) {
-    const lowerPath = (filePath || '').toLowerCase();
-    const isConfigFile =
-      lowerPath.includes('/configs/') || lowerPath.includes('\\configs\\');
+  useImperativeHandle(ref, () => ({
+    async captureScreenshot(options = {}) {
+      const lowerPath = (filePath || '').toLowerCase();
+      const isConfigFile =
+        lowerPath.includes('/configs/') || lowerPath.includes('\\configs\\');
 
-    // Basic guards
-    if (!excelPath) {
-      if (!options.silent) {
-        alert('Excel path not set. Cannot save screenshot.');
-      }
-      return;
-    }
-
-    if (!isConfigFile) {
-      if (!options.silent) {
-        alert(
-          'Current file is not under a Configs folder; screenshot skipped.'
-        );
-      }
-      return;
-    }
-
-    const diffEl = diffRef.current;
-    if (!diffEl) {
-      console.warn('Diff DOM not ready for screenshot.');
-      return;
-    }
-
-    try {
-      // 1️⃣ Find cells that represent changes (added / removed / changed)
-      const findChangedCellsWithRetry = async (
-        retries = 4,
-        interval = 250
-      ) => {
-        for (let attempt = 0; attempt < retries; attempt++) {
-          const cells = diffEl.querySelectorAll(
-            '[class*="diff-added"], [class*="diff-removed"], [class*="diff-changed"]'
-          );
-          if (cells && cells.length > 0) return Array.from(cells);
-          await delay(interval);
-        }
-        return [];
-      };
-
-      const changedCells = await findChangedCellsWithRetry();
-
-      const table = diffEl.querySelector('table');
-      if (!table) {
+      // Basic guards
+      if (!excelPath) {
         if (!options.silent) {
-          alert('Diff table not found; cannot capture screenshot.');
+          alert('Excel path not set. Cannot save screenshot.');
         }
         return;
       }
 
-      const allRows = Array.from(table.querySelectorAll('tr'));
-
-      // 2️⃣ Build a set of row indices to include:
-      //    - each changed row
-      //    - row above it (if exists AND this isn't line 1)
-      //    - row below it (if exists)
-      const rowIndexSet = new Set();
-
-      changedCells.forEach((cell) => {
-        const row = cell.closest('tr');
-        if (!row) return;
-        const idx = allRows.indexOf(row);
-        if (idx === -1) return;
-
-        // Detect whether this row is line 1 (first code line)
-        const lineNumbers = Array.from(row.querySelectorAll('td'))
-          .map((td) => (td.textContent || '').trim())
-          .filter((txt) => /^\d+$/.test(txt))
-          .map((txt) => Number(txt));
-
-        const isFirstLineRow = lineNumbers.some((n) => n === 1);
-
-        // current row
-        rowIndexSet.add(idx);
-
-        // one row above, only if it exists AND this isn't the first code line
-        if (!isFirstLineRow && idx > 0) {
-          rowIndexSet.add(idx - 1);
+      if (!isConfigFile) {
+        if (!options.silent) {
+          alert(
+            'Current file is not under a Configs folder; screenshot skipped.'
+          );
         }
-
-        // one row below, only if it exists
-        if (idx < allRows.length - 1) {
-          rowIndexSet.add(idx + 1);
-        }
-      });
-
-      // Convert to a sorted array of indices in DOM order
-      let indices = Array.from(rowIndexSet).sort((a, b) => a - b);
-
-      // If we somehow didn't find anything, fall back to full table
-      if (indices.length === 0) {
-        indices = allRows.map((_, i) => i);
+        return;
       }
 
-      // 3️⃣ Build a minimal invisible table with just those rows
-      const CAPTURE_WIDTH = 1500;
+      const diffEl = diffRef.current;
+      if (!diffEl) {
+        console.warn('Diff DOM not ready for screenshot.');
+        return;
+      }
 
-      const tempContainer = document.createElement('div');
-      tempContainer.style.position = 'fixed';
-      tempContainer.style.left = '-10000px';
-      tempContainer.style.top = '0';
-      tempContainer.style.background = '#ffffff';
-      tempContainer.style.color = '#111827';
-      tempContainer.style.padding = '10px';
-      tempContainer.style.boxSizing = 'border-box';
-      tempContainer.style.width = `${CAPTURE_WIDTH}px`;
+      try {
+        // 1️⃣ Find cells that represent changes (added / removed / changed)
+        const findChangedCellsWithRetry = async (
+          retries = 4,
+          interval = 250
+        ) => {
+          for (let attempt = 0; attempt < retries; attempt++) {
+            const cells = diffEl.querySelectorAll(
+              '[class*="diff-added"], [class*="diff-removed"], [class*="diff-changed"]'
+            );
+            if (cells && cells.length > 0) return Array.from(cells);
+            await delay(interval);
+          }
+          return [];
+        };
 
-      const tempTable = document.createElement('table');
-      tempTable.className = table.className;
-      tempTable.style.borderCollapse = 'collapse';
-      tempTable.style.width = '100%';
-      tempTable.style.tableLayout = 'fixed';
-      tempTable.style.fontFamily =
-        '"Consolas","Menlo","Courier New",monospace';
-      tempTable.style.fontSize = '11px';
-      tempTable.style.lineHeight = '1.3';
+        const changedCells = await findChangedCellsWithRetry();
 
-      indices.forEach((idx) => {
-        const row = allRows[idx];
-        if (!row) return;
-        const cloneRow = row.cloneNode(true);
+        const table = diffEl.querySelector('table');
+        if (!table) {
+          if (!options.silent) {
+            alert('Diff table not found; cannot capture screenshot.');
+          }
+          return;
+        }
 
-        cloneRow.querySelectorAll('td, th').forEach((cell) => {
-          cell.style.padding = '2px 6px';
+        const allRows = Array.from(table.querySelectorAll('tr'));
 
-          const className = (cell.className || '').toLowerCase();
-          if (className.includes('gutter')) {
-            // line number / gutter column
-            cell.style.whiteSpace = 'nowrap';
-            cell.style.wordBreak = 'keep-all';
-            cell.style.minWidth = '30px';
-            cell.style.width = '1%';
-            cell.style.textAlign = 'right';
-          } else {
-            // code column
-            cell.style.wordBreak = 'break-word';
-            cell.style.whiteSpace = 'pre-wrap';
+        // 2️⃣ Build a set of row indices to include:
+        //    - each changed row
+        //    - row above it (if exists AND this isn't line 1)
+        //    - row below it (if exists)
+        const rowIndexSet = new Set();
+
+        changedCells.forEach((cell) => {
+          const row = cell.closest('tr');
+          if (!row) return;
+          const idx = allRows.indexOf(row);
+          if (idx === -1) return;
+
+          // Detect whether this row is line 1 (first code line)
+          const lineNumbers = Array.from(row.querySelectorAll('td'))
+            .map((td) => (td.textContent || '').trim())
+            .filter((txt) => /^\d+$/.test(txt))
+            .map((txt) => Number(txt));
+
+          const isFirstLineRow = lineNumbers.some((n) => n === 1);
+
+          // current row
+          rowIndexSet.add(idx);
+
+          // one row above, only if it exists AND this isn't the first code line
+          if (!isFirstLineRow && idx > 0) {
+            rowIndexSet.add(idx - 1);
           }
 
-          // copy computed background and text color to preserve diff styling
-          const computed = window.getComputedStyle(cell);
-          cell.style.backgroundColor = computed.backgroundColor;
-          cell.style.color = computed.color;
-          cell.style.borderBottom =
-            '1px solid rgba(148, 163, 184, 0.4)'; // slate-400 @ 40%
+          // one row below, only if it exists
+          if (idx < allRows.length - 1) {
+            rowIndexSet.add(idx + 1);
+          }
         });
 
-        tempTable.appendChild(cloneRow);
-      });
+        // Convert to a sorted array of indices in DOM order
+        let indices = Array.from(rowIndexSet).sort((a, b) => a - b);
 
-      tempContainer.appendChild(tempTable);
-      document.body.appendChild(tempContainer);
-
-      // 4️⃣ Wait for fonts/layout to settle, then capture
-      try {
-        if (document.fonts && document.fonts.ready) {
-          await document.fonts.ready;
+        // If we somehow didn't find anything, fall back to full table
+        if (indices.length === 0) {
+          indices = allRows.map((_, i) => i);
         }
-      } catch {
-        // ignore
-      }
 
-      await new Promise((res) =>
-        requestAnimationFrame(() => requestAnimationFrame(res))
-      );
+        // 3️⃣ Build a minimal invisible table with just those rows
+        const CAPTURE_WIDTH = 1500;
 
-      const canvas = await html2canvas(tempContainer, {
-        backgroundColor: '#ffffff',
-        scale: 1.2,
-        width: CAPTURE_WIDTH,
-        windowWidth: CAPTURE_WIDTH,
-      });
+        const tempContainer = document.createElement('div');
+        tempContainer.style.position = 'fixed';
+        tempContainer.style.left = '-10000px';
+        tempContainer.style.top = '0';
+        tempContainer.style.background = '#ffffff';
+        tempContainer.style.color = '#111827';
+        tempContainer.style.padding = '10px';
+        tempContainer.style.boxSizing = 'border-box';
+        tempContainer.style.width = `${CAPTURE_WIDTH}px`;
 
-      document.body.removeChild(tempContainer);
+        const tempTable = document.createElement('table');
+        tempTable.className = table.className;
+        tempTable.style.borderCollapse = 'collapse';
+        tempTable.style.width = '100%';
+        tempTable.style.tableLayout = 'fixed';
+        tempTable.style.fontFamily =
+          '"Consolas","Menlo","Courier New",monospace';
+        tempTable.style.fontSize = '11px';
+        tempTable.style.lineHeight = '1.3';
 
-      const blob = await new Promise((resolve, reject) => {
-        canvas.toBlob((b) => {
-          if (!b) {
-            return reject(
-              new Error('Failed to convert canvas to Blob')
-            );
+        indices.forEach((idx) => {
+          const row = allRows[idx];
+          if (!row) return;
+          const cloneRow = row.cloneNode(true);
+
+          cloneRow.querySelectorAll('td, th').forEach((cell) => {
+            cell.style.padding = '2px 6px';
+
+            const className = (cell.className || '').toLowerCase();
+            if (className.includes('gutter')) {
+              // line number / gutter column
+              cell.style.whiteSpace = 'nowrap';
+              cell.style.wordBreak = 'keep-all';
+              cell.style.minWidth = '30px';
+              cell.style.width = '1%';
+              cell.style.textAlign = 'right';
+            } else {
+              // code column
+              cell.style.wordBreak = 'break-word';
+              cell.style.whiteSpace = 'pre-wrap';
+            }
+
+            // copy computed background and text color to preserve diff styling
+            const computed = window.getComputedStyle(cell);
+            cell.style.backgroundColor = computed.backgroundColor;
+            cell.style.color = computed.color;
+            cell.style.borderBottom =
+              '1px solid rgba(148, 163, 184, 0.4)'; // slate-400 @ 40%
+          });
+
+          tempTable.appendChild(cloneRow);
+        });
+
+        tempContainer.appendChild(tempTable);
+        document.body.appendChild(tempContainer);
+
+        // 4️⃣ Wait for fonts/layout to settle, then capture
+        try {
+          if (document.fonts && document.fonts.ready) {
+            await document.fonts.ready;
           }
-          resolve(b);
-        }, 'image/png');
-      });
+        } catch {
+          // ignore
+        }
 
-      if (!blob || blob.size === 0) {
-        throw new Error('Screenshot blob is empty');
+        await new Promise((res) =>
+          requestAnimationFrame(() => requestAnimationFrame(res))
+        );
+
+        const canvas = await html2canvas(tempContainer, {
+          backgroundColor: '#ffffff',
+          scale: 1.2,
+          width: CAPTURE_WIDTH,
+          windowWidth: CAPTURE_WIDTH,
+        });
+
+        document.body.removeChild(tempContainer);
+
+        const blob = await new Promise((resolve, reject) => {
+          canvas.toBlob((b) => {
+            if (!b) {
+              return reject(
+                new Error('Failed to convert canvas to Blob')
+              );
+            }
+            resolve(b);
+          }, 'image/png');
+        });
+
+        if (!blob || blob.size === 0) {
+          throw new Error('Screenshot blob is empty');
+        }
+
+        const componentName = getComponentName(filePath);
+
+        const resp = await uploadDiffScreenshot(
+          excelPath,
+          fileName || 'diff',
+          blob,
+          componentName,
+          serverName || ''
+        );
+
+        if (!options.silent) {
+          alert(resp.message || 'Screenshot added to Excel.');
+        }
+      } catch (err) {
+        console.warn('Error capturing diff screenshot:', err);
+
+        const backendMessage =
+          (err &&
+            err.response &&
+            err.response.data &&
+            err.response.data.detail) ||
+          (err &&
+            err.response &&
+            err.response.data &&
+            err.response.data.message) ||
+          err?.message ||
+          'Failed to capture screenshot.';
+
+        if (!options.silent) {
+          alert(backendMessage);
+        }
+
+        throw new Error(backendMessage);
       }
-
-      const componentName = getComponentName(filePath);
-
-      const resp = await uploadDiffScreenshot(
-        excelPath,
-        fileName || 'diff',
-        blob,
-        componentName,
-        serverName || ''
-      );
-
-      if (!options.silent) {
-        alert(resp.message || 'Screenshot added to Excel.');
-      }
-    } catch (err) {
-      console.warn('Error capturing diff screenshot:', err);
-
-      const backendMessage =
-        (err &&
-          err.response &&
-          err.response.data &&
-          err.response.data.detail) ||
-        (err &&
-          err.response &&
-          err.response.data &&
-          err.response.data.message) ||
-        err?.message ||
-        'Failed to capture screenshot.';
-
-      if (!options.silent) {
-        alert(backendMessage);
-      }
-
-      throw new Error(backendMessage);
-    }
-  },
-}));
+    },
+  }));
 
   const savedComments = (comments || []).filter(
     (c) => c.comment && c.comment.trim()
@@ -436,9 +436,9 @@ useImperativeHandle(ref, () => ({
           title="New comparison file"
           subtitle="This file exists only in the comparison folder"
         />
-        <div className="flex-1 p-4 overflow-auto">
+        <div className="flex-1 p-3 sm:p-4 overflow-auto">
           <textarea
-            className="w-full h-full min-h-[400px] p-4 rounded-md border border-slate-300 bg-white text-slate-900 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600"
+            className="w-full h-full min-h-[250px] sm:min-h-[400px] p-3 sm:p-4 rounded-md border border-slate-300 bg-white text-slate-900 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600"
             value={editableNewText}
             onChange={handleNewChange}
             placeholder="Edit comparison content..."
@@ -450,7 +450,7 @@ useImperativeHandle(ref, () => ({
 
   if (status === 'missing' || status === 'missing_new') {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-white p-8 dark:bg-slate-900">
+      <div className="h-full flex flex-col items-center justify-center bg-white px-4 py-6 sm:p-8 text-center dark:bg-slate-900">
         <div className="mb-4 p-4 rounded-full bg-red-50 text-red-600 border border-red-100 dark:bg-red-900/40 dark:text-red-200 dark:border-red-700/60">
           <svg
             className="w-10 h-10"
@@ -466,10 +466,10 @@ useImperativeHandle(ref, () => ({
             />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-2 dark:text-slate-50">
+        <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2 dark:text-slate-50">
           File deleted from comparison
         </h3>
-        <p className="text-sm text-slate-600 text-center max-w-md dark:text-slate-300">
+        <p className="text-sm text-slate-600 max-w-md dark:text-slate-300">
           This file exists only in the baseline folder. There is no
           comparison version to display.
         </p>
@@ -478,9 +478,9 @@ useImperativeHandle(ref, () => ({
   }
 
   return (
-    <div className="h-full flex flex-col bg-white overflow-hidden dark:bg-slate-900">
+    <div className="h-full min-w-0 flex flex-col bg-white overflow-hidden dark:bg-slate-900">
       {/* Tab Navigation */}
-      <div className="flex items-center gap-1 px-4 py-2 bg-white border-b border-slate-200 dark:bg-slate-900 dark:border-slate-700">
+      <div className="flex items-center gap-1 px-2 sm:px-4 py-2 bg-white border-b border-slate-200 dark:bg-slate-900 dark:border-slate-700">
         {[
           {
             id: 'diff',
@@ -544,7 +544,7 @@ useImperativeHandle(ref, () => ({
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`relative flex items-center gap-2 px-4 py-2 rounded-md text-xs font-medium
+            className={`relative flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-xs font-medium
               ${
                 activeTab === tab.id
                   ? 'bg-purple-50 text-purple-700 border border-purple-300 dark:bg-purple-900/40 dark:text-purple-200 dark:border-purple-500/60'
@@ -562,9 +562,9 @@ useImperativeHandle(ref, () => ({
       {activeTab === 'diff' && (
         <div
           ref={containerRef}
-          className="relative flex-1 overflow-auto scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-transparent dark:scrollbar-thumb-purple-500"
+          className="relative flex-1 overflow-auto px-2 sm:px-4 py-2 scrollbar-thin scrollbar-thumb-purple-300 scrollbar-track-transparent dark:scrollbar-thumb-purple-500"
         >
-          <div ref={diffRef} className="min-h-full">
+          <div ref={diffRef} className="min-h-full min-w-[640px]">
             <ReactDiffViewer
               oldValue={oldText || ''}
               newValue={editableNewText || ''}
@@ -599,12 +599,12 @@ useImperativeHandle(ref, () => ({
           {/* Comment Popover */}
           {activeLine != null && popoverTop != null && (
             <div
-              className="absolute right-4 w-80 z-50"
+              className="absolute right-2 sm:right-4 w-full max-w-xs sm:max-w-sm z-50"
               style={{ top: popoverTop }}
             >
               <div className="relative bg-white border border-slate-200 rounded-md shadow-md overflow-hidden dark:bg-slate-900 dark:border-slate-700">
                 {/* Header */}
-                <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200 dark:bg-slate-900 dark:border-slate-700">
+                <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-slate-50 border-b border-slate-200 dark:bg-slate-900 dark:border-slate-700">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 rounded-md bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
                       <svg
@@ -647,7 +647,7 @@ useImperativeHandle(ref, () => ({
                 </div>
 
                 {/* Line Preview */}
-                <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                <div className="px-3 sm:px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                   <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5 dark:text-slate-400">
                     Code preview
                   </p>
@@ -658,7 +658,7 @@ useImperativeHandle(ref, () => ({
                 </div>
 
                 {/* Comment Input */}
-                <div className="p-4">
+                <div className="p-3 sm:p-4">
                   <textarea
                     className="w-full h-24 p-3 rounded-md bg-white border border-slate-300 text-sm text-slate-900 placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600 dark:placeholder-slate-500"
                     placeholder="Add your comment about this change..."
@@ -685,10 +685,10 @@ useImperativeHandle(ref, () => ({
 
       {/* Edit Tab */}
       {activeTab === 'edit' && (
-        <div className="flex-1 flex flex-col p-4 overflow-hidden bg-white dark:bg-slate-900">
+        <div className="flex-1 flex flex-col p-3 sm:p-4 overflow-hidden bg-white dark:bg-slate-900">
           <div className="flex-1 relative">
             <textarea
-              className="absolute inset-0 w-full h-full p-4 rounded-md bg-white border border-slate-300 text-slate-900 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 scrollbar-thin dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600"
+              className="absolute inset-0 w-full h-full p-3 sm:p-4 rounded-md bg-white border border-slate-300 text-slate-900 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 scrollbar-thin dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600"
               value={editableNewText}
               onChange={handleNewChange}
               placeholder="Edit the comparison content here..."
@@ -703,9 +703,9 @@ useImperativeHandle(ref, () => ({
 
       {/* Comments Tab */}
       {activeTab === 'comments' && (
-        <div className="flex-1 overflow-auto p-4 bg-white scrollbar-thin scrollbar-thumb-purple-300 dark:bg-slate-900 dark:scrollbar-thumb-purple-500">
+        <div className="flex-1 overflow-auto p-3 sm:p-4 bg-white scrollbar-thin scrollbar-thumb-purple-300 dark:bg-slate-900 dark:scrollbar-thumb-purple-500">
           {savedComments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="flex flex-col items-center justify-center h-full text-center px-4">
               <div className="mb-4 p-4 rounded-full bg-purple-50 text-purple-600 border border-purple-100 dark:bg-purple-900/40 dark:text-purple-200 dark:border-purple-700/60">
                 <svg
                   className="w-10 h-10"

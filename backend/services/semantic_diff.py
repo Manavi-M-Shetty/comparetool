@@ -116,6 +116,15 @@ def parse_xml_file(path: str) -> Optional[Dict[str, str]]:
 
 
 def detect_file_type(path: str) -> str:
+    """
+    Detect file type based on extension and content.
+    
+    Args:
+        path: File path to analyze
+        
+    Returns:
+        File type string: 'json', 'yaml', 'xml', or 'keyvalue'
+    """
     ext = Path(path).suffix.lower()
     if ext == ".json":
         return "json"
@@ -136,6 +145,15 @@ def detect_file_type(path: str) -> str:
 
 
 def value_type(v):
+    """
+    Determine the type of a value, handling both Python objects and string representations.
+    
+    Args:
+        v: Value to analyze
+        
+    Returns:
+        Type string: 'null', 'bool', 'number', 'string', or Python type name
+    """
     if v is None:
         return "null"
     if isinstance(v, bool):
@@ -160,6 +178,17 @@ def value_type(v):
 
 
 def compare_maps(old_map: Dict[str, Any], new_map: Dict[str, Any]) -> Tuple[List[Change], Dict[str, Any]]:
+    """
+    Compare two key-value maps and produce a list of changes.
+    Identifies added, removed, modified, and renamed keys.
+    
+    Args:
+        old_map: Original configuration map
+        new_map: Updated configuration map
+        
+    Returns:
+        Tuple of (changes list, summary dict with counts)
+    """
     changes: List[Change] = []
 
     old_keys = set(old_map.keys())

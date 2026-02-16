@@ -59,6 +59,7 @@ export const compareFolders = async (oldFolder, newFolder, workspaceId) => {
   return res.data;
 };
 
+
 /**
  * Compare folders and optionally update Excel in a single operation.
  * Used by UI for combined compare + Excel update workflow.
@@ -179,6 +180,17 @@ export const updateWorkspace = async (name, updates) => {
 };
 
 
+/**
+ * Upload a diff screenshot to Excel workbook.
+ * Embeds the image as a new page with metadata (filename, component, server).
+ *
+ * @param {string} excelPath - Path to Excel workbook
+ * @param {string} fileName - Name of the file being diffed
+ * @param {Blob} imageBlob - Screenshot image blob
+ * @param {string} componentName - Component/folder name for metadata
+ * @param {string} serverName - Server identifier for metadata
+ * @returns {Promise} Response from upload endpoint
+ */
 export const uploadDiffScreenshot = async (
   excelPath,
   fileName,
@@ -197,6 +209,43 @@ export const uploadDiffScreenshot = async (
   return res.data;
 };
 
+/**
+ * Compare two folders by uploading files.
+ * Sends folder contents as multipart form data.
+ * Files maintain their relative paths through webkitdirectory attribute.
+ */
+export const compareFoldersUpload = async (oldFiles, newFiles, workspaceId) => {
+  const formData = new FormData();
+  
+  // Add all files from old folder
+  for (const file of oldFiles) {
+    formData.append('old_files', file, file.webkitRelativePath);
+  }
+  
+  // Add all files from new folder
+  for (const file of newFiles) {
+    formData.append('new_files', file, file.webkitRelativePath);
+  }
+  
+  // Add workspace ID
+  formData.append('workspace_id', workspaceId);
+  
+  const res = await axios.post(`${API_BASE_URL}/compare-folders`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  
+  return res.data;
+};
+
+
+/**
+ * Open system folder picker dialog.
+ * Uses backend tkinter integration to display native file browser.
+ *
+ * @returns {Promise<string>} Selected folder path, or empty string if cancelled
+ */
 export async function browseSystemFolder() {
   try {
     const res = await fetch(`${API_BASE_URL}/browse`);
@@ -209,6 +258,12 @@ export async function browseSystemFolder() {
   }
 }
 
+/**
+ * Open system file picker dialog.
+ * Uses backend tkinter integration to display native file browser.
+ *
+ * @returns {Promise<string>} Selected file path, or empty string if cancelled
+ */
 export async function browseSystemFile() {
   try {
     const res = await fetch(`${API_BASE_URL}/browse-file`);
@@ -221,10 +276,18 @@ export async function browseSystemFile() {
   }
 }
 
+/**
+ * Scan database delta migration folder structure.
+ * Extracts delta groups (migration script collections) from DeltaDrop folder structure.
+ *
+ * @param {string} rootFolder - Path to database root folder (contains BaseDrop and DeltaDrop)
+ * @param {string} excelPath - Optional: Path to Excel file for writing results
+ * @returns {Promise<Object>} Response with database_name, groups[], excel_written, and message
+ */
 export const scanDeltaGroups = async (rootFolder, excelPath = '') => {
   const res = await api.post('/delta-scan', {
     root_folder: rootFolder,
     excel_path: excelPath || '',
   });
-  return res.data; // { database_name, groups, excel_written, message }
+  return res.data;
 };

@@ -1,7 +1,6 @@
-// frontend/src/components/CompareButton.jsx
 /**
  * Compare and Update button component.
- * Primary action button that triggers folder comparison and optional Excel update.
+ * Primary action button that triggers folder comparison
  * Shows loading state with spinner during comparison process.
  */
 
@@ -14,8 +13,9 @@ export default function CompareButton({
 
   const baseClasses = `
     inline-flex items-center justify-center gap-2
-    rounded-md min-w-[200px] px-8 py-3
-    text-sm font-medium
+    rounded-md px-5 sm:px-8 py-2.5 sm:py-3
+    min-w-[160px] sm:min-w-[200px]
+    text-xs sm:text-sm font-medium
     bg-purple-600 text-white border border-purple-600 shadow-sm
     hover:bg-purple-700 hover:border-purple-700
     focus:outline-none focus:ring-2 focus:ring-purple-500/60 focus:ring-offset-1 focus:ring-offset-transparent
@@ -71,7 +71,7 @@ export default function CompareButton({
               d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
             />
           </svg>
-          <span className="text-sm font-medium">Compare &amp; Update</span>
+          <span className="text-sm font-medium">Compare</span>
         </>
       )}
     </button>

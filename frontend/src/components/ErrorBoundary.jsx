@@ -36,8 +36,8 @@ export default class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-100 px-4 py-6 dark:bg-slate-900">
-          <div className="w-full max-w-xl glass-panel p-6 md:p-8">
+        <div className="min-h-screen flex items-center justify-center bg-slate-100 px-4 sm:px-6 py-6 sm:py-8 dark:bg-slate-900">
+          <div className="w-full max-w-xl glass-panel p-5 sm:p-6 md:p-8">
             {/* Header */}
             <div className="flex items-start gap-3 mb-6">
               <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-200">
@@ -68,7 +68,7 @@ export default class ErrorBoundary extends React.Component {
 
             {/* Error details */}
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <span className="text-xs font-medium text-slate-700 uppercase tracking-wide dark:text-slate-300">
                   Error details
                 </span>
@@ -94,7 +94,7 @@ export default class ErrorBoundary extends React.Component {
                   <span className="hidden sm:inline ml-1">Copy</span>
                 </button>
               </div>
-              <div className="rounded-md border border-slate-200 bg-slate-50 max-h-32 overflow-auto p-3 dark:border-slate-700 dark:bg-slate-900">
+              <div className="rounded-md border border-slate-200 bg-slate-50 max-h-40 overflow-auto p-3 dark:border-slate-700 dark:bg-slate-900">
                 <pre className="text-xs font-mono text-red-700 whitespace-pre-wrap break-words dark:text-red-300">
                   {String(this.state.error)}
                 </pre>
@@ -160,7 +160,7 @@ export default class ErrorBoundary extends React.Component {
             </div>
 
             {/* Footer */}
-            <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            <div className="mt-4 pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
               <span>Release Notes Automation Tool</span>
               <span className="flex items-center gap-1">
                 <span className="inline-block w-2 h-2 rounded-full bg-red-500 dark:bg-red-400" />

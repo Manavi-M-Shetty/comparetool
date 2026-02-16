@@ -1,4 +1,13 @@
-// frontend/src/context/ThemeContext.jsx
+/**
+ * Theme context for managing light/dark mode application-wide.
+ *
+ * Features:
+ * - Persistent theme preference (localStorage)
+ * - Theme toggle function
+ * - Automatic system theme detection
+ * - Context providers for complete app wrap
+ */
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 const ThemeContext = createContext(null);

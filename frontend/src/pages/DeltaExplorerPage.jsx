@@ -1,3 +1,14 @@
+/**
+ * Delta explorer page for database migration script management.
+ *
+ * Features:
+ * - Browse and select database root folders
+ * - Scan DeltaDrop folder structures for migration scripts
+ * - Organize scripts by delta groups
+ * - Export delta group information to Excel
+ * - Visual display of folder hierarchy
+ */
+
 import React, { useState } from 'react';
 import { scanDeltaGroups, browseSystemFolder, browseSystemFile } from '../utils/api';
 
@@ -218,22 +229,20 @@ export default function DeltaExplorerPage() {
             </button>
           </div>
           <div
-            className={`text-xs px-3 py-1.5 rounded-full inline-flex items-center gap-2 ${
-              status.type === 'error'
+            className={`text-xs px-3 py-1.5 rounded-full inline-flex items-center gap-2 ${status.type === 'error'
                 ? 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-900/40 dark:text-red-100 dark:border-red-500/40'
                 : status.type === 'success'
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-100 dark:border-emerald-500/40'
-                : 'bg-slate-50 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600'
-            }`}
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-100 dark:border-emerald-500/40'
+                  : 'bg-slate-50 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600'
+              }`}
           >
             <span
-              className={`h-2 w-2 rounded-full ${
-                status.type === 'error'
+              className={`h-2 w-2 rounded-full ${status.type === 'error'
                   ? 'bg-red-500'
                   : status.type === 'success'
-                  ? 'bg-emerald-500'
-                  : 'bg-slate-400'
-              }`}
+                    ? 'bg-emerald-500'
+                    : 'bg-slate-400'
+                }`}
             />
             <span>{status.message}</span>
           </div>
@@ -328,10 +337,10 @@ export default function DeltaExplorerPage() {
               d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
-          <span>
-            Folder structure expected:{' '}
-            <span className="font-mono">DatabaseName\DeltaDrop\*</span>, SQL files inside each
-            subfolder.
+            Folder structure example:{' '}
+            <span className="font-mono">
+              DatabaseDrop/DatabaseName/DeltaDrop/TableScripts/5.0.0_AlterScript_[AGT_Agent].sql
+          
           </span>
         </div>
       </div>

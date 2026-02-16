@@ -9,7 +9,7 @@ from typing import Dict, List, Tuple
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.file_utils import (
+from ..utils.file_utils import (
     safe_listdir, safe_isdir, get_filename, 
     normalize_path, path_exists
 )

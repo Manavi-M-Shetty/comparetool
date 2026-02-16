@@ -18,8 +18,8 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
 
-from models.schemas import FileDiff
-from utils.file_utils import path_exists
+from ..models.schemas import FileDiff
+from ..utils.file_utils import path_exists
 
 def sheet_name_from_component(component_name: str,
                               default: str = "Diff Screenshots") -> str:

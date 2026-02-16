@@ -251,9 +251,9 @@ export default function WorkspaceSidebar() {
   return (
     <>
       <div
-        className={`relative flex flex-col h-screen border-r border-slate-200 bg-white text-slate-900 transition-all duration-200
-                    dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 ${
-          isCollapsed ? 'w-16' : 'w-72'
+        className={`relative flex flex-col h-auto md:h-screen border-b md:border-b-0 md:border-r border-slate-200 bg-white text-slate-900 transition-all duration-200
+                    dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 w-full ${
+          isCollapsed ? 'md:w-16' : 'md:w-72'
         }`}
       >
         {/* Header */}

@@ -6,7 +6,7 @@ Primarily used for SQL Server or similar database migration scenarios.
 import os
 from typing import Dict, List
 
-from utils.file_utils import (
+from ..utils.file_utils import (
     safe_listdir,
     safe_isdir,
     normalize_path,

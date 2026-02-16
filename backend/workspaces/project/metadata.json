@@ -1,0 +1,21 @@
+{
+  "name": "project",
+  "project_name": "project",
+  "old_folder": "",
+  "new_folder": "",
+  "excel_path": "",
+  "environments": [
+    {
+      "name": "uta",
+      "servers": [
+        {
+          "name": "server1",
+          "old_folder": "",
+          "new_folder": "",
+          "excel_path": ""
+        }
+      ]
+    }
+  ],
+  "history": []
+}

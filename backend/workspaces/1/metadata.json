@@ -4,6 +4,15 @@
   "old_folder": "",
   "new_folder": "",
   "excel_path": "",
-  "environments": [],
+  "environments": [
+    {
+      "name": "yyy",
+      "servers": [
+        {
+          "name": "se1"
+        }
+      ]
+    }
+  ],
   "history": []
 }

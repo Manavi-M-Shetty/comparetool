@@ -181,7 +181,7 @@ export default function FolderTree({
   missingOldFiles = [],
   missingNewFiles = [],
   validationMap = {},
-  onToggleValidation = () => { },
+  onToggleValidation = () => {},
 }) {
   const [expandedFolders, setExpandedFolders] = useState(new Set());
 
@@ -251,7 +251,7 @@ export default function FolderTree({
 
   if (!tree) {
     return (
-      <div className="flex h-40 flex-col items-center justify-center px-4 text-center">
+      <div className="flex h-32 sm:h-40 flex-col items-center justify-center px-4 text-center">
         <div className="mb-3 rounded-full border border-purple-100 bg-purple-50 p-3 text-purple-600 dark:border-purple-800 dark:bg-purple-900/40 dark:text-purple-200">
           <svg
             className="h-6 w-6"
@@ -330,10 +330,11 @@ export default function FolderTree({
         {/* Left accent line for modified/missing */}
         {(status === 'modified' || status === 'missing') && (
           <div
-            className={`absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full ${status === 'modified'
+            className={`absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full ${
+              status === 'modified'
                 ? 'bg-amber-500 dark:bg-amber-400'
                 : 'bg-red-500 dark:bg-red-400'
-              }`}
+            }`}
           />
         )}
 
@@ -368,9 +369,10 @@ export default function FolderTree({
                 className={`
                   flex h-4 w-4 cursor-pointer items-center justify-center rounded border-2
                   transition-colors
-                  ${validated
-                    ? 'bg-purple-600 border-purple-500 dark:bg-purple-500 dark:border-purple-400'
-                    : 'bg-transparent border-slate-400 hover:border-purple-500 dark:border-slate-500 dark:hover:border-purple-400'
+                  ${
+                    validated
+                      ? 'bg-purple-600 border-purple-500 dark:bg-purple-500 dark:border-purple-400'
+                      : 'bg-transparent border-slate-400 hover:border-purple-500 dark:border-slate-500 dark:hover:border-purple-400'
                   }
                 `}
               >
@@ -420,8 +422,9 @@ export default function FolderTree({
         >
           {/* Chevron */}
           <svg
-            className={`h-3 w-3 text-slate-500 transition-transform dark:text-slate-400 ${isOpen ? 'rotate-90' : ''
-              }`}
+            className={`h-3 w-3 text-slate-500 transition-transform dark:text-slate-400 ${
+              isOpen ? 'rotate-90' : ''
+            }`}
             fill="currentColor"
             viewBox="0 0 20 20"
           >
@@ -437,10 +440,11 @@ export default function FolderTree({
 
           {/* Folder Name */}
           <span
-            className={`flex-1 truncate text-xs font-medium ${hasChanges
+            className={`flex-1 truncate text-xs font-medium ${
+              hasChanges
                 ? 'text-purple-700 dark:text-purple-300'
                 : 'text-slate-700 dark:text-slate-200'
-              }`}
+            }`}
             title={node.name}
           >
             {node.name}
@@ -456,7 +460,7 @@ export default function FolderTree({
 
         {/* Folder Contents */}
         {isOpen && (
-          <div className="mt-0.5 ml-3 space-y-0.5 border-l border-slate-200 pl-3 dark:border-slate-700">
+          <div className="mt-0.5 ml-2 sm:ml-3 space-y-0.5 border-l border-slate-200 pl-2 sm:pl-3 dark:border-slate-700">
             {/* Files */}
             {(node.files || []).map((fd, i) => {
               if (
@@ -528,7 +532,7 @@ export default function FolderTree({
             </span>
           </summary>
 
-          <div className="mt-2 ml-2 max-h-48 space-y-1 overflow-y-auto border-l border-slate-200 pl-3 scrollbar-thin scrollbar-thumb-purple-300 dark:border-slate-700 dark:scrollbar-thumb-purple-500">
+          <div className="mt-2 ml-2 max-h-40 sm:max-h-48 space-y-1 overflow-y-auto border-l border-slate-200 pl-3 scrollbar-thin scrollbar-thumb-purple-300 dark:border-slate-700 dark:scrollbar-thumb-purple-500">
             {missingNewFiles.map((m, idx) => {
               const validated = validationMap[m.file_path] || false;
               const fileName = getFileName(m.file_path);
@@ -567,7 +571,10 @@ export default function FolderTree({
 
                   {/* File Info */}
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-slate-800 truncate dark:text-slate-100" title={fileName}>
+                    <p
+                      className="text-xs text-slate-800 truncate dark:text-slate-100"
+                      title={fileName}
+                    >
                       {fileName}
                     </p>
                     <p className="truncate text-[9px] text-slate-500 dark:text-slate-400">
@@ -592,9 +599,10 @@ export default function FolderTree({
                       className={`
                         flex h-4 w-4 cursor-pointer items-center justify-center rounded border-2
                         transition-colors
-                        ${validated
-                          ? 'bg-purple-600 border-purple-500 dark:bg-purple-500 dark:border-purple-400'
-                          : 'bg-transparent border-slate-400 hover:border-purple-500 dark:border-slate-500 dark:hover:border-purple-400'
+                        ${
+                          validated
+                            ? 'bg-purple-600 border-purple-500 dark:bg-purple-500 dark:border-purple-400'
+                            : 'bg-transparent border-slate-400 hover:border-purple-500 dark:border-slate-500 dark:hover:border-purple-400'
                         }
                       `}
                     >
@@ -630,7 +638,7 @@ export default function FolderTree({
   };
 
   return (
-    <div className="h-full pb-20">
+    <div className="h-full pb-16 sm:pb-20">
       {/* New Files Section */}
       {renderOnlyInNew()}
 

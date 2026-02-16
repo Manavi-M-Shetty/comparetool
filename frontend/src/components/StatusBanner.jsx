@@ -1,3 +1,13 @@
+/**
+ * Status banner component for displaying application messages.
+ *
+ * Features:
+ * - Auto-dismissing notifications
+ * - Multiple status types (success, error, info, warning)
+ * - Customizable timeout and styling
+ * - Status icon and message display
+ */
+
 import React, { useEffect, useState } from 'react';
 import { useComparison } from '../context/ComparisonContext';
 
@@ -171,9 +181,9 @@ export default function StatusBanner() {
       `}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
           {/* Left section: Icon + Message */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-start gap-3 min-w-0 w-full sm:w-auto">
             <div
               className={`
                 flex-shrink-0 p-1.5 rounded-md
@@ -185,13 +195,13 @@ export default function StatusBanner() {
 
             <div className="min-w-0">
               <p
-                className={`text-sm font-medium ${config.textColor} truncate`}
+                className={`text-sm font-medium ${config.textColor} whitespace-normal break-words sm:truncate`}
               >
                 {status.message}
               </p>
               {status.details && (
                 <p
-                  className={`text-xs ${config.textColor} opacity-70 truncate mt-0.5`}
+                  className={`text-xs ${config.textColor} opacity-70 whitespace-normal break-words sm:truncate mt-0.5`}
                 >
                   {status.details}
                 </p>
@@ -200,7 +210,7 @@ export default function StatusBanner() {
           </div>
 
           {/* Right section: Actions */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-between sm:justify-end">
             {/* Progress indicator for loading */}
             {type === 'loading' && (
               <div className="hidden sm:flex items-center gap-1.5">

@@ -10,7 +10,6 @@
  * Routes:
  * - / (Upload): Select folders and initiate comparison
  * - /results (Comparison): View and interact with comparison results
- * - /report (Report): Report generation and Excel updates
  * - /delta (Delta Explorer): Database delta migration viewing
  */
 
@@ -52,7 +51,7 @@ function NavLink({ to, children, icon }) {
           (isActive
             ? 'text-white'
             : 'text-purple-500 group-hover:text-purple-700 ' +
-              'dark:text-purple-300 dark:group-hover:text-purple-200')
+            'dark:text-purple-300 dark:group-hover:text-purple-200')
         }
       >
         {icon}
@@ -137,10 +136,10 @@ function AppContent() {
 
                 <div className="hidden sm:block leading-tight">
                   <h1 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                    Release Notes
+                    TDiCE
                   </h1>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                    Automation Tool
+                    Release Automation Tool
                   </p>
                 </div>
               </Link>
@@ -189,7 +188,7 @@ function AppContent() {
                   Results
                 </NavLink>
 
-                {/* Delta Explorer tab */}
+                {/* Databse Explorer tab */}
                 <NavLink
                   to="/delta"
                   icon={
@@ -208,7 +207,7 @@ function AppContent() {
                     </svg>
                   }
                 >
-                  Delta Explorer
+                  DB Explorer
                 </NavLink>
               </nav>
             </div>
@@ -308,15 +307,10 @@ function AppContent() {
       {/* Workspace Modal as landing page (first time only) */}
       {showModal && (
         <WorkspaceModal
-          onCreate={async (name) => {
-            await createNewWorkspace(name);
-            closeWorkspaceModal();
+          onCreate={async (workspaceName, envName, serverName) => {
+            await createNewWorkspace(workspaceName, envName, serverName);
+            // no need to call closeWorkspaceModal here; the modal closes itself on success
           }}
-          onSelect={async (name) => {
-            await selectWorkspace(name);
-            closeWorkspaceModal();
-          }}
-          workspaces={workspaces}
           onClose={closeWorkspaceModal}
         />
       )}
