@@ -66,10 +66,10 @@ from .services.semantic_diff import semantic_compare_texts
 
 PILImage.MAX_IMAGE_PIXELS = None
 
-# FastAPI application instance
+# Application Configuration
 app = FastAPI(title="Config Compare Tool API", version="1.0.0")
 
-# Enable CORS for frontend development (localhost:3000)
+# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -79,12 +79,14 @@ app.add_middleware(
 )
 
 
+# Health Check Endpoints
 @app.get("/")
 def root():
     """Health check endpoint - verifies API is running."""
     return {"status": "ok", "message": "Config Compare Tool API"}
 
 
+# File Comparison Endpoints
 @app.post("/compare", response_model=dict)
 async def compare_files_endpoint(
     request: Request,
@@ -103,7 +105,7 @@ async def compare_files_endpoint(
     """
     content_type = request.headers.get("content-type", "")
 
-    # Case 1: multipart file upload
+    # Handle multipart file upload comparison
     if old_file is not None and new_file is not None:
         try:
             old_bytes = await old_file.read()
@@ -184,6 +186,7 @@ async def compare_files_endpoint(
             "new_text": new_text_str,
         }
 
+    # Handle file path-based comparison
     # Case 2: JSON or form fields with paths
     data = None
     if "application/json" in content_type:
@@ -240,6 +243,7 @@ async def compare_files_endpoint(
     }
 
 
+# Folder Scanning and Comparison Endpoints
 @app.post("/scan-folders", response_model=ScanFoldersResponse)
 async def scan_folders_endpoint(request: Request):
     """
@@ -501,6 +505,7 @@ async def compare_files_upload(
     }
 
 
+# File Operations Endpoints
 @app.post("/save-edited-file")
 async def save_edited_file_endpoint(payload: dict):
     """
@@ -555,6 +560,7 @@ async def save_edited_file_endpoint(payload: dict):
     }
 
 
+# Excel Operations Endpoints
 @app.post("/write-changes", response_model=WriteChangesResponse)
 async def write_changes_endpoint(request: WriteChangesRequest):
     """Write reviewed changes to Excel file."""
@@ -566,6 +572,7 @@ async def write_changes_endpoint(request: WriteChangesRequest):
     )
 
 
+# Workspace Management Endpoints
 @app.post("/workspace/create", response_model=WorkspaceResponse)
 async def create_workspace_endpoint(request: WorkspaceCreateRequest):
     """
@@ -625,6 +632,7 @@ async def delete_workspace_endpoint(name: str):
     return {"success": True}
 
 
+# Image and Screenshot Endpoints
 @app.post("/write-diff-image")
 async def write_diff_image_endpoint(
     excel_path: str = Form(...),
@@ -687,6 +695,7 @@ async def write_diff_image_endpoint(
     return {"success": True, "message": message}
 
 
+# File Browser Dialog Endpoints
 @app.get("/browse")
 def browse_folder_dialog():
     """
@@ -739,6 +748,7 @@ def browse_file_dialog():
         return {"path": ""}
 
 
+# Database Delta Scanning Endpoints
 @app.post("/delta-scan", response_model=DeltaScanResponse)
 def delta_scan_endpoint(request: DeltaScanRequest):
     """

@@ -1,4 +1,20 @@
 // frontend/src/pages/ComparisonAndReviewPage.jsx
+/**
+ * Configuration Comparison and Release Note Automation Tool.
+ *
+ * Features:
+ * - Browse and select source and target configuration folders
+ * - Perform folder-to-folder comparison
+ * - Detect Identical, Modified, and Missing files
+ * - Side-by-side diff viewer for detailed review
+ * - Mark files as validated after review
+ * - Add and manage review comments
+ * - Capture screenshots of configuration changes
+ * - Automatically embed screenshots into Excel
+ * - Generate structured Excel output for release documentation
+ * - Dashboard view with comparison statistics
+ */
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import FolderTree from '../components/FolderTree';
 import DiffViewer from '../components/DiffViewer';

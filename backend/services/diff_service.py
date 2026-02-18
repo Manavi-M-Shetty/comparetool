@@ -52,7 +52,7 @@ def parse_unified_diff(unified_diff: List[str]) -> List[DiffLine]:
                     new_line_num=None,
                 )
             )
-            # Parse line numbers from hunk header format: @@ -old_start,old_count +new_start,new_count @@
+            # Parse hunk header for line numbers
             try:
                 parts = line.split("@@")[1].strip().split()
                 if len(parts) >= 2:

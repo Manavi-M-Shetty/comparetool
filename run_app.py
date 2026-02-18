@@ -1,3 +1,10 @@
+"""
+Main application entry point for the Config Compare Tool.
+
+Serves both the FastAPI backend API and the React frontend static files.
+Handles PyInstaller bundling for distribution as a single executable.
+"""
+
 import os
 import sys
 import time
@@ -14,8 +21,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from backend.main import app as api_app
 
 
-# ---------- Helpers to find files both in source and in PyInstaller exe ----------
-
+# Helper Functions
 def resource_path(*parts: str) -> str:
     """
     Return an absolute path to a resource, working both:
@@ -32,8 +38,7 @@ def resource_path(*parts: str) -> str:
 FRONTEND_DIST = resource_path("frontend", "dist")
 ASSETS_DIR = os.path.join(FRONTEND_DIST, "assets")
 
-# ---------- Root app (what uvicorn will actually run) ----------
-
+# Application Configuration
 app = FastAPI(title="Config Compare Tool")
 
 # Mount your existing API at /api
@@ -78,8 +83,7 @@ else:
         )
 
 
-# ---------- Auto-open browser when server is ready ----------
-
+# Auto-Open Browser Functionality
 def open_browser_when_ready(url: str, timeout: float = 20.0) -> None:
     start = time.time()
     while time.time() - start < timeout:
@@ -98,3 +102,4 @@ if __name__ == "__main__":
     ).start()
 
     uvicorn.run(app, host="127.0.0.1", port=8000)
+    
